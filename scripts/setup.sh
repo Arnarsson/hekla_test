@@ -191,8 +191,21 @@ else
     echo -e "  ${CYAN}→${NC} Starting core services (Langfuse skipped to save RAM)"
     docker compose up -d
 fi
-echo -e "  ${CYAN}→${NC} Waiting for services..."
-sleep 10
+echo -e "  ${CYAN}→${NC} Waiting for services to be healthy..."
+
+# Wait for Gateway to be healthy (depends on postgres + redis, so covers all)
+GATEWAY_READY=false
+for i in $(seq 1 60); do
+    if curl -sf http://localhost:3000/health > /dev/null 2>&1; then
+        GATEWAY_READY=true
+        break
+    fi
+    # Show progress every 10 seconds
+    if [ $((i % 10)) -eq 0 ]; then
+        echo -e "  ${CYAN}→${NC} Still waiting... (${i}s)"
+    fi
+    sleep 1
+done
 
 # Check services
 SERVICES=("postgres" "redis" "gateway" "orchestrator")
@@ -200,9 +213,14 @@ for service in "${SERVICES[@]}"; do
     if docker compose ps | grep -q "${service}.*running\|${service}.*Up"; then
         echo -e "  ${GREEN}✓${NC} ${service} running"
     else
-        echo -e "  ${YELLOW}!${NC} ${service} starting..."
+        echo -e "  ${RED}✗${NC} ${service} not running"
     fi
 done
+
+if [ "$GATEWAY_READY" != "true" ]; then
+    echo -e "  ${RED}✗${NC} Gateway did not become healthy within 60s."
+    echo "    Check logs with: docker compose logs gateway"
+fi
 
 # ─── Step 7: Electron App ──────────────────
 echo -e "\n${BLUE}[7/8] Electron App${NC}"
