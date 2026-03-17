@@ -1,0 +1,11 @@
+{
+  "name": "hekla-tests",
+  "version": "1.0.0",
+  "description": "HEKLA offline unit and integration tests",
+  "scripts": {
+    "test": "node run-tests.js",
+    "test:unit": "node run-tests.js --unit",
+    "test:preview": "node preview.js"
+  },
+  "dependencies": {}
+}

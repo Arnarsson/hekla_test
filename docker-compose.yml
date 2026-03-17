@@ -1,7 +1,8 @@
 services:
   # ============================================
-  # INFERENCE - Ollama with GPU passthrough
+  # INFERENCE - Ollama (CPU by default)
   # ============================================
+  # For GPU support, run: docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
   ollama:
     image: ollama/ollama:latest
     container_name: hekla-ollama
@@ -10,13 +11,6 @@ services:
       - "11434:11434"
     volumes:
       - ./models:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
       interval: 30s

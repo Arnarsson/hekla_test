@@ -91,7 +91,14 @@ fi
 
 # Step 4: Start Ollama
 echo -e "\n${BLUE}[4/7] Starting Ollama${NC}"
-docker compose up -d ollama
+if command -v nvidia-smi &> /dev/null; then
+    COMPOSE_CMD="docker compose -f docker-compose.yml -f docker-compose.gpu.yml"
+    echo -e "  ${GREEN}✓${NC} GPU detected — using GPU-accelerated Ollama"
+else
+    COMPOSE_CMD="docker compose"
+    echo -e "  ${CYAN}→${NC} No GPU — using CPU-only Ollama"
+fi
+$COMPOSE_CMD up -d ollama
 echo -e "  ${CYAN}→${NC} Waiting for Ollama to be ready..."
 sleep 5
 
@@ -112,7 +119,7 @@ echo -e "  ${GREEN}✓${NC} Model ready"
 
 # Step 6: Start Full Stack
 echo -e "\n${BLUE}[6/7] Starting Full Stack${NC}"
-docker compose up -d
+$COMPOSE_CMD up -d
 echo -e "  ${CYAN}→${NC} Waiting for services..."
 sleep 10
 
