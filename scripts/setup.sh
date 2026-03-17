@@ -11,9 +11,10 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
+ORANGE='\033[38;5;208m'
 NC='\033[0m'
 
-echo -e "${CYAN}"
+echo -e "${ORANGE}"
 echo "  ██╗  ██╗███████╗██╗  ██╗██╗      █████╗ "
 echo "  ██║  ██║██╔════╝██║ ██╔╝██║     ██╔══██╗"
 echo "  ███████║█████╗  █████╔╝ ██║     ███████║"
@@ -26,7 +27,7 @@ echo "  https://www.hekla.cc/"
 echo ""
 
 # ─── Step 1: System Check ────────────────
-echo -e "${BLUE}[1/8] System Check${NC}"
+echo -e "${ORANGE}[1/8] System Check${NC}"
 
 # Verify macOS
 if [[ "$(uname)" != "Darwin" ]]; then
@@ -51,29 +52,29 @@ if [[ "$(uname)" == "Darwin" ]]; then
         RECOMMENDED_MODEL="llama3.3:70b"
         TIER="max"
         COMPOSE_PROFILE="--profile full"
-        echo -e "  ${CYAN}→${NC} Tier: ${GREEN}MAX${NC} — Near-SOTA local performance"
+        echo -e "  ${ORANGE}→${NC} Tier: ${GREEN}MAX${NC} — Near-SOTA local performance"
     elif [ "$TOTAL_MEM_GB" -ge 36 ]; then
         RECOMMENDED_MODEL="qwen2.5:32b"
         TIER="pro"
         COMPOSE_PROFILE="--profile full"
-        echo -e "  ${CYAN}→${NC} Tier: ${GREEN}PRO${NC} — Full capability, optimal balance"
+        echo -e "  ${ORANGE}→${NC} Tier: ${GREEN}PRO${NC} — Full capability, optimal balance"
     elif [ "$TOTAL_MEM_GB" -ge 24 ]; then
         RECOMMENDED_MODEL="qwen2.5:14b"
         TIER="base+"
         COMPOSE_PROFILE=""
-        echo -e "  ${CYAN}→${NC} Tier: ${YELLOW}BASE+${NC} — Good for core PA tasks"
+        echo -e "  ${ORANGE}→${NC} Tier: ${YELLOW}BASE+${NC} — Good for core PA tasks"
     elif [ "$TOTAL_MEM_GB" -ge 16 ]; then
         RECOMMENDED_MODEL="qwen2.5:7b"
         TIER="base"
         COMPOSE_PROFILE=""
-        echo -e "  ${CYAN}→${NC} Tier: ${YELLOW}BASE${NC} — Core PA tasks (Langfuse disabled to save RAM)"
+        echo -e "  ${ORANGE}→${NC} Tier: ${YELLOW}BASE${NC} — Core PA tasks (Langfuse disabled to save RAM)"
     else
         RECOMMENDED_MODEL="qwen2.5:3b"
         TIER="mini"
         COMPOSE_PROFILE=""
-        echo -e "  ${CYAN}→${NC} Tier: ${RED}MINI${NC} — Very limited, 16GB minimum recommended"
+        echo -e "  ${ORANGE}→${NC} Tier: ${RED}MINI${NC} — Very limited, 16GB minimum recommended"
     fi
-    echo -e "  ${CYAN}→${NC} Recommended model: ${RECOMMENDED_MODEL}"
+    echo -e "  ${ORANGE}→${NC} Recommended model: ${RECOMMENDED_MODEL}"
 else
     TOTAL_MEM_GB="unknown"
     RECOMMENDED_MODEL="qwen2.5:14b"
@@ -81,7 +82,7 @@ else
 fi
 
 # ─── Step 2: Dependencies ────────────────
-echo -e "\n${BLUE}[2/8] Dependencies${NC}"
+echo -e "\n${ORANGE}[2/8] Dependencies${NC}"
 
 # Homebrew
 if command -v brew &> /dev/null; then
@@ -113,7 +114,7 @@ if command -v node &> /dev/null; then
     NODE_VERSION=$(node --version)
     echo -e "  ${GREEN}✓${NC} Node.js installed: ${NODE_VERSION}"
 else
-    echo -e "  ${CYAN}→${NC} Installing Node.js..."
+    echo -e "  ${ORANGE}→${NC} Installing Node.js..."
     brew install node
     echo -e "  ${GREEN}✓${NC} Node.js installed"
 fi
@@ -123,13 +124,13 @@ if command -v ollama &> /dev/null; then
     OLLAMA_VERSION=$(ollama --version 2>/dev/null || echo "unknown")
     echo -e "  ${GREEN}✓${NC} Ollama installed: ${OLLAMA_VERSION}"
 else
-    echo -e "  ${CYAN}→${NC} Installing Ollama..."
+    echo -e "  ${ORANGE}→${NC} Installing Ollama..."
     brew install ollama
     echo -e "  ${GREEN}✓${NC} Ollama installed"
 fi
 
 # ─── Step 3: Environment Setup ────────────
-echo -e "\n${BLUE}[3/8] Environment Configuration${NC}"
+echo -e "\n${ORANGE}[3/8] Environment Configuration${NC}"
 
 if [ ! -f .env ]; then
     cp .env.example .env
@@ -149,21 +150,21 @@ if [ ! -f .env ]; then
     echo -e "  ${GREEN}✓${NC} Generated secure passwords"
     echo -e "  ${GREEN}✓${NC} Set model: ${RECOMMENDED_MODEL} (tier: ${TIER})"
 else
-    echo -e "  ${CYAN}→${NC} Using existing .env file"
+    echo -e "  ${ORANGE}→${NC} Using existing .env file"
 fi
 
 # ─── Step 4: Start Ollama (native) ────────
-echo -e "\n${BLUE}[4/8] Starting Ollama (native Metal acceleration)${NC}"
+echo -e "\n${ORANGE}[4/8] Starting Ollama (native Metal acceleration)${NC}"
 
 # Check if Ollama is already running
 if curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
     echo -e "  ${GREEN}✓${NC} Ollama already running"
 else
-    echo -e "  ${CYAN}→${NC} Starting Ollama..."
+    echo -e "  ${ORANGE}→${NC} Starting Ollama..."
     # On macOS, Ollama runs as a native process (uses Metal GPU)
     ollama serve &>/dev/null &
     OLLAMA_PID=$!
-    echo -e "  ${CYAN}→${NC} Waiting for Ollama to be ready..."
+    echo -e "  ${ORANGE}→${NC} Waiting for Ollama to be ready..."
     sleep 3
 
     for i in {1..30}; do
@@ -176,23 +177,36 @@ else
 fi
 
 # ─── Step 5: Pull Model ──────────────────
-echo -e "\n${BLUE}[5/8] Pulling Model: ${RECOMMENDED_MODEL}${NC}"
-echo -e "  ${CYAN}→${NC} This may take a while depending on your connection..."
+echo -e "\n${ORANGE}[5/8] Pulling Model: ${RECOMMENDED_MODEL}${NC}"
+echo -e "  ${ORANGE}→${NC} This may take a while depending on your connection..."
 ollama pull ${RECOMMENDED_MODEL}
 echo -e "  ${GREEN}✓${NC} Model ready"
 
 # ─── Step 6: Start Docker Stack ──────────
-echo -e "\n${BLUE}[6/8] Starting Docker Stack${NC}"
-echo -e "  ${CYAN}→${NC} Ollama runs natively — Docker containers connect via host.docker.internal"
+echo -e "\n${ORANGE}[6/8] Starting Docker Stack${NC}"
+echo -e "  ${ORANGE}→${NC} Ollama runs natively — Docker containers connect via host.docker.internal"
 if [ -n "$COMPOSE_PROFILE" ]; then
-    echo -e "  ${CYAN}→${NC} Starting with Langfuse (enough memory)"
+    echo -e "  ${ORANGE}→${NC} Starting with Langfuse (enough memory)"
     docker compose ${COMPOSE_PROFILE} up -d
 else
-    echo -e "  ${CYAN}→${NC} Starting core services (Langfuse skipped to save RAM)"
+    echo -e "  ${ORANGE}→${NC} Starting core services (Langfuse skipped to save RAM)"
     docker compose up -d
 fi
-echo -e "  ${CYAN}→${NC} Waiting for services..."
-sleep 10
+echo -e "  ${ORANGE}→${NC} Waiting for services to be healthy..."
+
+# Wait for Gateway to be healthy (depends on postgres + redis, so covers all)
+GATEWAY_READY=false
+for i in $(seq 1 60); do
+    if curl -sf http://localhost:3000/health > /dev/null 2>&1; then
+        GATEWAY_READY=true
+        break
+    fi
+    # Show progress every 10 seconds
+    if [ $((i % 10)) -eq 0 ]; then
+        echo -e "  ${ORANGE}→${NC} Still waiting... (${i}s)"
+    fi
+    sleep 1
+done
 
 # Check services
 SERVICES=("postgres" "redis" "gateway" "orchestrator")
@@ -200,25 +214,34 @@ for service in "${SERVICES[@]}"; do
     if docker compose ps | grep -q "${service}.*running\|${service}.*Up"; then
         echo -e "  ${GREEN}✓${NC} ${service} running"
     else
-        echo -e "  ${YELLOW}!${NC} ${service} starting..."
+        echo -e "  ${RED}✗${NC} ${service} not running"
     fi
 done
 
+if [ "$GATEWAY_READY" != "true" ]; then
+    echo -e "  ${RED}✗${NC} Gateway did not become healthy within 60s."
+    echo "    Check logs with: docker compose logs gateway"
+fi
+
 # ─── Step 7: Electron App ──────────────────
-echo -e "\n${BLUE}[7/8] Electron App${NC}"
+echo -e "\n${ORANGE}[7/8] Electron App${NC}"
 
 if command -v node &> /dev/null; then
-    echo -e "  ${CYAN}→${NC} Installing Electron app dependencies..."
-    (cd electron-app && npm install --no-fund --no-audit 2>/dev/null)
-    echo -e "  ${GREEN}✓${NC} Electron app ready"
+    echo -e "  ${ORANGE}→${NC} Installing Electron app dependencies..."
+    if (cd electron-app && npm install --no-fund --no-audit); then
+        echo -e "  ${GREEN}✓${NC} Electron app ready"
+    else
+        echo -e "  ${RED}✗${NC} Electron app install failed. Try manually:"
+        echo "    cd electron-app && npm install"
+    fi
 else
     echo -e "  ${YELLOW}!${NC} Node.js not found — install with: brew install node"
     echo "    Then run: cd electron-app && npm install"
 fi
 
 # ─── Step 8: Smoke Test ──────────────────
-echo -e "\n${BLUE}[8/8] Smoke Test${NC}"
-echo -e "  ${CYAN}→${NC} Testing Ollama inference (Metal GPU)..."
+echo -e "\n${ORANGE}[8/8] Smoke Test${NC}"
+echo -e "  ${ORANGE}→${NC} Testing Ollama inference (Metal GPU)..."
 
 RESPONSE=$(curl -sf http://localhost:11434/api/chat -d '{
   "model": "'${RECOMMENDED_MODEL}'",
@@ -241,9 +264,9 @@ fi
 
 # Done
 echo ""
-echo -e "${GREEN}════════════════════════════════════════════${NC}"
-echo -e "${GREEN}  HEKLA Setup Complete!${NC}"
-echo -e "${GREEN}════════════════════════════════════════════${NC}"
+echo -e "${ORANGE}════════════════════════════════════════════${NC}"
+echo -e "${ORANGE}  HEKLA Setup Complete!${NC}"
+echo -e "${ORANGE}════════════════════════════════════════════${NC}"
 echo ""
 echo "  Hardware: Mac Mini M4 (${TOTAL_MEM_GB}GB unified memory)"
 echo "  Tier:     ${TIER}"
@@ -258,15 +281,25 @@ echo "  • Ollama:   http://localhost:11434 (native Metal)"
 echo ""
 
 # Launch Electron app
-if [ -f electron-app/node_modules/.bin/electron ]; then
-    echo -e "  ${CYAN}→${NC} Launching HEKLA Desktop app..."
+echo -e "  ${ORANGE}→${NC} Installing and launching HEKLA Desktop app..."
+if (cd electron-app && npm install --no-fund --no-audit); then
+    echo -e "  ${GREEN}✓${NC} Dependencies installed"
     echo "    The setup wizard will guide you through connecting your Microsoft account."
     echo ""
-    (cd electron-app && ACTIVE_MODEL=${RECOMMENDED_MODEL} npm start &) 2>/dev/null
-    echo -e "  ${GREEN}✓${NC} HEKLA Desktop launched"
+    cd electron-app
+    ACTIVE_MODEL=${RECOMMENDED_MODEL} npm run dev &
+    ELECTRON_PID=$!
+    cd ..
+    sleep 3
+    if kill -0 $ELECTRON_PID 2>/dev/null; then
+        echo -e "  ${GREEN}✓${NC} HEKLA Desktop launched (PID: ${ELECTRON_PID})"
+    else
+        echo -e "  ${RED}✗${NC} HEKLA Desktop failed to start. Try manually:"
+        echo "    cd electron-app && npm run dev"
+    fi
 else
-    echo "  To launch the desktop app:"
-    echo "    cd electron-app && npm install && npm start"
+    echo -e "  ${RED}✗${NC} npm install failed. Try manually:"
+    echo "    cd electron-app && npm install && npm run dev"
 fi
 echo ""
 echo "  https://www.hekla.cc/"
