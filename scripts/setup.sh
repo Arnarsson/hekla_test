@@ -285,9 +285,11 @@ if (cd electron-app && npm install --no-fund --no-audit); then
     echo -e "  ${GREEN}✓${NC} Dependencies installed"
     echo "    The setup wizard will guide you through connecting your Microsoft account."
     echo ""
-    (cd electron-app && ACTIVE_MODEL=${RECOMMENDED_MODEL} npm run dev &)
+    cd electron-app
+    ACTIVE_MODEL=${RECOMMENDED_MODEL} npm run dev &
     ELECTRON_PID=$!
-    sleep 2
+    cd ..
+    sleep 3
     if kill -0 $ELECTRON_PID 2>/dev/null; then
         echo -e "  ${GREEN}✓${NC} HEKLA Desktop launched (PID: ${ELECTRON_PID})"
     else
