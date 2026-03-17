@@ -1,0 +1,35 @@
+{
+  "name": "hekla-desktop",
+  "version": "0.1.0",
+  "description": "HEKLA Desktop — OAuth, Dashboard & Management",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "cc.hekla.desktop",
+    "productName": "HEKLA",
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.icns"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "assets/**/*"
+    ]
+  },
+  "dependencies": {
+    "@azure/msal-node": "^2.16.0",
+    "electron-store": "^8.2.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.0"
+  }
+}

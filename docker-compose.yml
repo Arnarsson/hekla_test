@@ -1,32 +1,16 @@
+## HEKLA — Docker Compose (Mac Mini M4)
+## https://www.hekla.cc/
+##
+## Ollama runs NATIVELY on macOS for Metal GPU acceleration.
+## All agents run in isolated containers for fault tolerance.
+##
+## Base (16GB):  docker compose up -d
+## Full (36GB+): docker compose --profile full up -d
+## Ollama: brew install ollama && ollama serve
+
 services:
   # ============================================
-  # INFERENCE - Ollama with GPU passthrough
-  # ============================================
-  ollama:
-    image: ollama/ollama:latest
-    container_name: hekla-ollama
-    restart: unless-stopped
-    ports:
-      - "11434:11434"
-    volumes:
-      - ./models:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - hekla-net
-
-  # ============================================
-  # DATABASE - PostgreSQL for state/memory
+  # DATABASE — PostgreSQL for state/memory
   # ============================================
   postgres:
     image: postgres:16-alpine
@@ -39,6 +23,8 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U hekla"]
       interval: 10s
@@ -48,7 +34,7 @@ services:
       - hekla-net
 
   # ============================================
-  # QUEUE - Redis for job coordination
+  # QUEUE — Redis for serial job coordination
   # ============================================
   redis:
     image: redis:7-alpine
@@ -56,6 +42,8 @@ services:
     restart: unless-stopped
     volumes:
       - redis-data:/data
+    ports:
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -65,7 +53,7 @@ services:
       - hekla-net
 
   # ============================================
-  # GATEWAY - API router
+  # GATEWAY — API router
   # ============================================
   gateway:
     build: ./services/gateway
@@ -76,21 +64,24 @@ services:
     environment:
       PORT: 3000
       REDIS_URL: redis://redis:6379
-      OLLAMA_URL: http://ollama:11434
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       DATABASE_URL: postgresql://hekla:${POSTGRES_PASSWORD}@postgres:5432/hekla
       ORCHESTRATOR_URL: http://orchestrator:3010
     depends_on:
-      ollama:
-        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
     networks:
       - hekla-net
 
   # ============================================
-  # ORCHESTRATOR - Task routing agent
+  # ORCHESTRATOR — Task routing agent
   # ============================================
   orchestrator:
     build: ./services/agents/orchestrator
@@ -101,80 +92,110 @@ services:
     environment:
       PORT: 3010
       REDIS_URL: redis://redis:6379
-      OLLAMA_URL: http://ollama:11434
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       DATABASE_URL: postgresql://hekla:${POSTGRES_PASSWORD}@postgres:5432/hekla
-      ACTIVE_MODEL: ${ACTIVE_MODEL:-qwen2.5:14b}
+      ACTIVE_MODEL: ${ACTIVE_MODEL:-qwen2.5:7b}
     depends_on:
-      - ollama
-      - redis
-      - postgres
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3010/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
     networks:
       - hekla-net
 
   # ============================================
-  # MAIL AGENT - Microsoft Graph integration
+  # MAIL AGENT — Microsoft Graph integration
+  # Isolated: crash/restart won't affect other agents
   # ============================================
   mail-agent:
     build: ./services/agents/mail
-    container_name: hekla-mail-agent
+    container_name: hekla-mail
     restart: unless-stopped
     environment:
       REDIS_URL: redis://redis:6379
-      OLLAMA_URL: http://ollama:11434
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       DATABASE_URL: postgresql://hekla:${POSTGRES_PASSWORD}@postgres:5432/hekla
-      ACTIVE_MODEL: ${ACTIVE_MODEL:-qwen2.5:14b}
+      ACTIVE_MODEL: ${ACTIVE_MODEL:-qwen2.5:7b}
+      ORCHESTRATOR_URL: http://orchestrator:3010
     depends_on:
-      - ollama
-      - redis
-      - postgres
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     networks:
       - hekla-net
 
   # ============================================
-  # CALENDAR AGENT - Schedule management
+  # CALENDAR AGENT — Schedule management
+  # Isolated: crash/restart won't affect other agents
   # ============================================
   calendar-agent:
     build: ./services/agents/calendar
-    container_name: hekla-calendar-agent
+    container_name: hekla-calendar
     restart: unless-stopped
     environment:
       REDIS_URL: redis://redis:6379
-      OLLAMA_URL: http://ollama:11434
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       DATABASE_URL: postgresql://hekla:${POSTGRES_PASSWORD}@postgres:5432/hekla
-      ACTIVE_MODEL: ${ACTIVE_MODEL:-qwen2.5:14b}
+      ACTIVE_MODEL: ${ACTIVE_MODEL:-qwen2.5:7b}
+      ORCHESTRATOR_URL: http://orchestrator:3010
     depends_on:
-      - ollama
-      - redis
-      - postgres
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     networks:
       - hekla-net
 
   # ============================================
-  # MEMORY AGENT - Long-term context
+  # MEMORY AGENT — Long-term context
+  # Isolated: crash/restart won't affect other agents
   # ============================================
   memory-agent:
     build: ./services/agents/memory
-    container_name: hekla-memory-agent
+    container_name: hekla-memory
     restart: unless-stopped
     environment:
       REDIS_URL: redis://redis:6379
-      OLLAMA_URL: http://ollama:11434
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       DATABASE_URL: postgresql://hekla:${POSTGRES_PASSWORD}@postgres:5432/hekla
-      ACTIVE_MODEL: ${ACTIVE_MODEL:-qwen2.5:14b}
+      ACTIVE_MODEL: ${ACTIVE_MODEL:-qwen2.5:7b}
+      ORCHESTRATOR_URL: http://orchestrator:3010
     depends_on:
-      - ollama
-      - redis
-      - postgres
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     networks:
       - hekla-net
 
   # ============================================
-  # LANGFUSE - Observability
+  # LANGFUSE — Observability (optional on 16GB)
+  # Included with: docker compose --profile full up -d
   # ============================================
   langfuse:
     image: ghcr.io/langfuse/langfuse:latest
     container_name: hekla-langfuse
     restart: unless-stopped
+    profiles:
+      - full
     ports:
       - "3001:3000"
     environment:
