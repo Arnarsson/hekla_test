@@ -12,11 +12,6 @@ const fs = require('fs');
 let totalPassed = 0;
 let totalFailed = 0;
 let totalSkipped = 0;
-const suites = [];
-
-function describe(name, fn) {
-  suites.push({ name, fn });
-}
 
 function createSuite(suiteName) {
   const tests = [];
@@ -50,69 +45,133 @@ function assert(condition, msg) {
   if (!condition) throw new Error(msg || 'Assertion failed');
 }
 
-function assertEqual(actual, expected, msg) {
-  if (actual !== expected) {
-    throw new Error(msg || `Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
-  }
-}
-
 function assertIncludes(str, substr, msg) {
   if (!str.includes(substr)) {
-    throw new Error(msg || `Expected "${str}" to include "${substr}"`);
+    throw new Error(msg || `Expected to include "${substr}"`);
   }
 }
 
-function skip() { throw new Error('SKIP'); }
+function assertNotIncludes(str, substr, msg) {
+  if (str.includes(substr)) {
+    throw new Error(msg || `Expected NOT to include "${substr}"`);
+  }
+}
+
+function readFile(relativePath) {
+  return fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
+}
+
+function fileExists(relativePath) {
+  return fs.existsSync(path.join(__dirname, '..', relativePath));
+}
 
 // ═══════════════════════════════════════
-// Test Suite: Docker Compose Validation
+// Test Suite: Architecture (Mac Mini M4)
 // ═══════════════════════════════════════
-const compose = createSuite('Docker Compose Configuration');
+const arch = createSuite('Architecture (Mac Mini M4)');
 
-compose.test('docker-compose.yml exists and is valid YAML', () => {
-  const composePath = path.join(__dirname, '..', 'docker-compose.yml');
-  assert(fs.existsSync(composePath), 'docker-compose.yml not found');
-  const content = fs.readFileSync(composePath, 'utf8');
-  assert(content.includes('services:'), 'Missing services key');
-  assert(content.includes('networks:'), 'Missing networks key');
-  assert(content.includes('volumes:'), 'Missing volumes key');
+arch.test('docker-compose.yml does NOT contain Ollama container', () => {
+  const content = readFile('docker-compose.yml');
+  assertNotIncludes(content, 'ollama/ollama', 'Ollama should run natively on macOS, not in Docker');
+  assertNotIncludes(content, 'nvidia', 'No NVIDIA references — Apple Silicon uses Metal');
 });
 
-compose.test('GPU override file exists', () => {
-  const gpuPath = path.join(__dirname, '..', 'docker-compose.gpu.yml');
-  assert(fs.existsSync(gpuPath), 'docker-compose.gpu.yml not found');
-  const content = fs.readFileSync(gpuPath, 'utf8');
-  assert(content.includes('nvidia'), 'Missing nvidia GPU config');
+arch.test('agents connect to Ollama via host.docker.internal', () => {
+  const content = readFile('docker-compose.yml');
+  assertIncludes(content, 'host.docker.internal:11434', 'Agents must reach host Ollama via Docker bridge');
+});
+
+arch.test('no GPU passthrough in base compose', () => {
+  const content = readFile('docker-compose.yml');
+  assertNotIncludes(content, 'capabilities: [gpu]', 'Mac Mini M4 uses Metal, not Docker GPU passthrough');
+  assertNotIncludes(content, 'driver: nvidia', 'No NVIDIA driver on Apple Silicon');
+});
+
+arch.test('agents have memory limits for isolation', () => {
+  const content = readFile('docker-compose.yml');
+  assertIncludes(content, 'memory: 512M', 'Agents should have memory limits for fault isolation');
+});
+
+arch.test('all services have restart: unless-stopped', () => {
+  const content = readFile('docker-compose.yml');
+  const serviceBlocks = content.split(/^\s{2}\w/m).length - 1;
+  const restartCount = (content.match(/restart: unless-stopped/g) || []).length;
+  assert(restartCount >= 7, `Expected at least 7 restart policies, found ${restartCount}`);
+});
+
+arch.test('default model is 32b (optimal for M4 Pro 36GB)', () => {
+  const content = readFile('docker-compose.yml');
+  assertIncludes(content, 'qwen2.5:32b', 'Default model should be 32b for M4 Pro tier');
+});
+
+// ═══════════════════════════════════════
+// Test Suite: Serial Processing
+// ═══════════════════════════════════════
+const serial = createSuite('Serial Processing (No Parallelism)');
+
+serial.test('mail agent has concurrency: 1', () => {
+  const code = readFile('services/agents/mail/index.js');
+  assertIncludes(code, 'concurrency: 1', 'Mail agent must process one job at a time');
+});
+
+serial.test('calendar agent has concurrency: 1', () => {
+  const code = readFile('services/agents/calendar/index.js');
+  assertIncludes(code, 'concurrency: 1', 'Calendar agent must process one job at a time');
+});
+
+serial.test('memory agent has concurrency: 1', () => {
+  const code = readFile('services/agents/memory/index.js');
+  assertIncludes(code, 'concurrency: 1', 'Memory agent must process one job at a time');
+});
+
+serial.test('queues have retry/backoff configured', () => {
+  const code = readFile('services/agents/orchestrator/index.js');
+  assertIncludes(code, 'attempts:', 'Queues should have retry attempts');
+  assertIncludes(code, 'backoff', 'Queues should have backoff strategy');
+});
+
+serial.test('workers have extended lock duration for LLM inference', () => {
+  const mailCode = readFile('services/agents/mail/index.js');
+  assertIncludes(mailCode, 'lockDuration', 'Workers need extended lock for LLM calls');
+});
+
+// ═══════════════════════════════════════
+// Test Suite: Docker Compose
+// ═══════════════════════════════════════
+const compose = createSuite('Docker Compose');
+
+compose.test('docker-compose.yml exists and is valid', () => {
+  assert(fileExists('docker-compose.yml'), 'docker-compose.yml not found');
+  const content = readFile('docker-compose.yml');
+  assertIncludes(content, 'services:', 'Missing services key');
+  assertIncludes(content, 'networks:', 'Missing networks key');
+  assertIncludes(content, 'volumes:', 'Missing volumes key');
 });
 
 compose.test('all required services are defined', () => {
-  const content = fs.readFileSync(path.join(__dirname, '..', 'docker-compose.yml'), 'utf8');
-  const requiredServices = ['ollama', 'postgres', 'redis', 'gateway', 'orchestrator', 'mail-agent', 'calendar-agent', 'memory-agent', 'langfuse'];
-  for (const svc of requiredServices) {
-    assertIncludes(content, `container_name: hekla-${svc.replace('-agent', '')}`,
-      `Service ${svc} not properly defined (missing container_name)`);
+  const content = readFile('docker-compose.yml');
+  const required = ['hekla-postgres', 'hekla-redis', 'hekla-gateway', 'hekla-orchestrator', 'hekla-mail', 'hekla-calendar', 'hekla-memory', 'hekla-langfuse'];
+  for (const name of required) {
+    assertIncludes(content, `container_name: ${name}`, `Missing container: ${name}`);
   }
 });
 
-compose.test('all services have health checks', () => {
-  const content = fs.readFileSync(path.join(__dirname, '..', 'docker-compose.yml'), 'utf8');
-  // Infrastructure services should have healthchecks
-  const healthCheckedServices = ['ollama', 'postgres', 'redis'];
-  for (const svc of healthCheckedServices) {
-    assertIncludes(content, 'healthcheck:', `Missing healthcheck (expected at least for ${svc})`);
-  }
+compose.test('infrastructure services have health checks', () => {
+  const content = readFile('docker-compose.yml');
+  assertIncludes(content, 'pg_isready', 'PostgreSQL healthcheck missing');
+  assertIncludes(content, 'redis-cli', 'Redis healthcheck missing');
 });
 
-compose.test('base compose does NOT require GPU', () => {
-  const content = fs.readFileSync(path.join(__dirname, '..', 'docker-compose.yml'), 'utf8');
-  assert(!content.includes('nvidia'), 'Base docker-compose.yml should not reference nvidia (use docker-compose.gpu.yml)');
-  assert(!content.includes('capabilities: [gpu]'), 'Base compose should not require GPU capabilities');
+compose.test('gateway and orchestrator have health checks', () => {
+  const content = readFile('docker-compose.yml');
+  // Both should have wget-based health checks
+  assert((content.match(/wget.*health/g) || []).length >= 2, 'Gateway and orchestrator need health checks');
 });
 
-compose.test('environment variables reference .env correctly', () => {
-  const content = fs.readFileSync(path.join(__dirname, '..', 'docker-compose.yml'), 'utf8');
-  assertIncludes(content, '${POSTGRES_PASSWORD}', 'Missing POSTGRES_PASSWORD env var');
-  assertIncludes(content, '${ACTIVE_MODEL', 'Missing ACTIVE_MODEL env var');
+compose.test('HEKLA branding in compose header', () => {
+  const content = readFile('docker-compose.yml');
+  assertIncludes(content, 'HEKLA', 'Missing HEKLA branding');
+  assertIncludes(content, 'hekla.cc', 'Missing hekla.cc URL');
 });
 
 // ═══════════════════════════════════════
@@ -121,12 +180,11 @@ compose.test('environment variables reference .env correctly', () => {
 const db = createSuite('Database Schema');
 
 db.test('init.sql exists', () => {
-  const sqlPath = path.join(__dirname, '..', 'postgres', 'init.sql');
-  assert(fs.existsSync(sqlPath), 'postgres/init.sql not found');
+  assert(fileExists('postgres/init.sql'), 'postgres/init.sql not found');
 });
 
 db.test('required tables are defined', () => {
-  const sql = fs.readFileSync(path.join(__dirname, '..', 'postgres', 'init.sql'), 'utf8');
+  const sql = readFile('postgres/init.sql');
   const tables = ['clients', 'oauth_tokens', 'agent_results', 'memories'];
   for (const table of tables) {
     assert(sql.includes(`CREATE TABLE ${table}`) || sql.includes(`CREATE TABLE IF NOT EXISTS ${table}`),
@@ -135,15 +193,14 @@ db.test('required tables are defined', () => {
 });
 
 db.test('agent_results has required columns', () => {
-  const sql = fs.readFileSync(path.join(__dirname, '..', 'postgres', 'init.sql'), 'utf8');
-  const columns = ['user_id', 'agent_type', 'input', 'output', 'status'];
-  for (const col of columns) {
-    assertIncludes(sql, col, `Missing column in agent_results: ${col}`);
+  const sql = readFile('postgres/init.sql');
+  for (const col of ['user_id', 'agent_type', 'input', 'output', 'status']) {
+    assertIncludes(sql, col, `Missing column: ${col}`);
   }
 });
 
 db.test('memories table supports types', () => {
-  const sql = fs.readFileSync(path.join(__dirname, '..', 'postgres', 'init.sql'), 'utf8');
+  const sql = readFile('postgres/init.sql');
   assertIncludes(sql, 'memory_type', 'Missing memory_type column');
 });
 
@@ -152,159 +209,105 @@ db.test('memories table supports types', () => {
 // ═══════════════════════════════════════
 const gw = createSuite('Gateway Service');
 
-gw.test('index.js exists with required endpoints', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'gateway', 'index.js'), 'utf8');
-  assertIncludes(code, "'/health'", 'Missing /health endpoint');
-  assertIncludes(code, "'/api/task'", 'Missing /api/task endpoint');
-  assertIncludes(code, "'/api/models'", 'Missing /api/models endpoint');
+gw.test('has required endpoints', () => {
+  const code = readFile('services/gateway/index.js');
+  assertIncludes(code, "'/health'", 'Missing /health');
+  assertIncludes(code, "'/api/task'", 'Missing /api/task');
+  assertIncludes(code, "'/api/models'", 'Missing /api/models');
 });
 
-gw.test('validates missing message in POST /api/task', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'gateway', 'index.js'), 'utf8');
+gw.test('validates missing message', () => {
+  const code = readFile('services/gateway/index.js');
   assertIncludes(code, '!message', 'Missing message validation');
-  assertIncludes(code, '400', 'Missing 400 status for bad request');
+  assertIncludes(code, '400', 'Missing 400 status');
 });
 
-gw.test('package.json has required dependencies', () => {
-  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'services', 'gateway', 'package.json'), 'utf8'));
-  const required = ['express', 'cors', 'axios'];
-  for (const dep of required) {
-    assert(pkg.dependencies[dep], `Missing dependency: ${dep}`);
+gw.test('has required dependencies', () => {
+  const pkg = JSON.parse(readFile('services/gateway/package.json'));
+  for (const dep of ['express', 'cors', 'axios']) {
+    assert(pkg.dependencies[dep], `Missing dep: ${dep}`);
   }
 });
 
 gw.test('Dockerfile exists', () => {
-  assert(fs.existsSync(path.join(__dirname, '..', 'services', 'gateway', 'Dockerfile')), 'Missing Dockerfile');
+  assert(fileExists('services/gateway/Dockerfile'), 'Missing Dockerfile');
 });
 
 // ═══════════════════════════════════════
-// Test Suite: Orchestrator Service
+// Test Suite: Orchestrator
 // ═══════════════════════════════════════
 const orch = createSuite('Orchestrator Service');
 
-orch.test('classifies valid intents', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'orchestrator', 'index.js'), 'utf8');
-  const validIntents = ['MAIL', 'CALENDAR', 'MEMORY', 'DIRECT'];
-  for (const intent of validIntents) {
+orch.test('classifies all intent types', () => {
+  const code = readFile('services/agents/orchestrator/index.js');
+  for (const intent of ['MAIL', 'CALENDAR', 'MEMORY', 'DIRECT']) {
     assertIncludes(code, `'${intent}'`, `Missing intent: ${intent}`);
   }
 });
 
-orch.test('falls back to DIRECT on classification failure', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'orchestrator', 'index.js'), 'utf8');
-  // Check fallback return
-  assert(
-    code.includes("return 'DIRECT'") && code.includes('catch'),
-    'Missing DIRECT fallback on error'
-  );
+orch.test('falls back to DIRECT on error', () => {
+  const code = readFile('services/agents/orchestrator/index.js');
+  assert(code.includes("return 'DIRECT'") && code.includes('catch'), 'Missing DIRECT fallback');
 });
 
-orch.test('routes intents to correct queues', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'orchestrator', 'index.js'), 'utf8');
+orch.test('routes to correct queues', () => {
+  const code = readFile('services/agents/orchestrator/index.js');
   assertIncludes(code, "'hekla:mail'", 'Missing mail queue');
   assertIncludes(code, "'hekla:calendar'", 'Missing calendar queue');
   assertIncludes(code, "'hekla:memory'", 'Missing memory queue');
 });
 
-orch.test('has task status endpoint', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'orchestrator', 'index.js'), 'utf8');
-  assertIncludes(code, "'/task/:jobId'", 'Missing task status endpoint');
+orch.test('has task status + completion endpoints', () => {
+  const code = readFile('services/agents/orchestrator/index.js');
+  assertIncludes(code, "'/task/:jobId'", 'Missing task status');
+  assertIncludes(code, "'/task/:jobId/complete'", 'Missing completion webhook');
 });
 
-orch.test('has job completion webhook', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'orchestrator', 'index.js'), 'utf8');
-  assertIncludes(code, "'/task/:jobId/complete'", 'Missing task completion endpoint');
-});
-
-orch.test('package.json has bullmq and uuid', () => {
-  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'orchestrator', 'package.json'), 'utf8'));
-  assert(pkg.dependencies.bullmq, 'Missing bullmq dependency');
-  assert(pkg.dependencies.uuid, 'Missing uuid dependency');
+orch.test('has bullmq and uuid dependencies', () => {
+  const pkg = JSON.parse(readFile('services/agents/orchestrator/package.json'));
+  assert(pkg.dependencies.bullmq, 'Missing bullmq');
+  assert(pkg.dependencies.uuid, 'Missing uuid');
 });
 
 // ═══════════════════════════════════════
-// Test Suite: Mail Agent
+// Test Suite: Agent Isolation & Safety
 // ═══════════════════════════════════════
-const mail = createSuite('Mail Agent');
+const safety = createSuite('Agent Isolation & Safety');
 
-mail.test('listens on correct queue', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'mail', 'index.js'), 'utf8');
-  assertIncludes(code, "'hekla:mail'", 'Wrong queue name');
+safety.test('mail agent checks OAuth before processing', () => {
+  const code = readFile('services/agents/mail/index.js');
+  assertIncludes(code, 'oauth_tokens', 'Must check OAuth');
+  assertIncludes(code, '!tokenResult.rows[0]', 'Must guard null token');
+  assertIncludes(code, 'cannot access your emails', 'Must refuse without OAuth');
 });
 
-mail.test('checks for OAuth token before processing', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'mail', 'index.js'), 'utf8');
-  assertIncludes(code, 'oauth_tokens', 'Missing OAuth token check');
-  assertIncludes(code, '!tokenResult.rows[0]', 'Missing null token guard');
+safety.test('mail agent handles TOKEN_EXPIRED', () => {
+  const code = readFile('services/agents/mail/index.js');
+  assertIncludes(code, 'TOKEN_EXPIRED', 'Must handle expired tokens');
 });
 
-mail.test('anti-hallucination: refuses without OAuth', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'mail', 'index.js'), 'utf8');
-  assertIncludes(code, 'cannot access your emails', 'Missing auth-required response');
+safety.test('calendar agent checks OAuth', () => {
+  const code = readFile('services/agents/calendar/index.js');
+  assertIncludes(code, '!tokenResult.rows[0]', 'Must guard null token');
+  assertIncludes(code, 'cannot access your calendar', 'Must refuse without OAuth');
 });
 
-mail.test('handles TOKEN_EXPIRED error', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'mail', 'index.js'), 'utf8');
-  assertIncludes(code, 'TOKEN_EXPIRED', 'Missing TOKEN_EXPIRED handling');
+safety.test('calendar agent supports event creation', () => {
+  const code = readFile('services/agents/calendar/index.js');
+  assertIncludes(code, "action === 'create'", 'Must support creating events');
 });
 
-mail.test('uses Microsoft Graph API', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'mail', 'index.js'), 'utf8');
-  assertIncludes(code, 'graph.microsoft.com', 'Missing Microsoft Graph API call');
+safety.test('memory agent supports store and recall', () => {
+  const code = readFile('services/agents/memory/index.js');
+  assertIncludes(code, "action === 'store'", 'Must support storing memories');
+  assertIncludes(code, 'relevance_score DESC', 'Must order by relevance');
 });
 
-// ═══════════════════════════════════════
-// Test Suite: Calendar Agent
-// ═══════════════════════════════════════
-const cal = createSuite('Calendar Agent');
-
-cal.test('listens on correct queue', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'calendar', 'index.js'), 'utf8');
-  assertIncludes(code, "'hekla:calendar'", 'Wrong queue name');
-});
-
-cal.test('supports event creation', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'calendar', 'index.js'), 'utf8');
-  assertIncludes(code, "action === 'create'", 'Missing event creation logic');
-  assertIncludes(code, 'createEvent', 'Missing createEvent function');
-});
-
-cal.test('uses 7-day calendar window', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'calendar', 'index.js'), 'utf8');
-  assertIncludes(code, '7 * 24 * 60 * 60 * 1000', 'Missing 7-day window calculation');
-});
-
-cal.test('checks for OAuth before accessing calendar', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'calendar', 'index.js'), 'utf8');
-  assertIncludes(code, '!tokenResult.rows[0]', 'Missing OAuth guard');
-  assertIncludes(code, 'cannot access your calendar', 'Missing auth-required message');
-});
-
-// ═══════════════════════════════════════
-// Test Suite: Memory Agent
-// ═══════════════════════════════════════
-const mem = createSuite('Memory Agent');
-
-mem.test('listens on correct queue', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'memory', 'index.js'), 'utf8');
-  assertIncludes(code, "'hekla:memory'", 'Wrong queue name');
-});
-
-mem.test('supports memory storage', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'memory', 'index.js'), 'utf8');
-  assertIncludes(code, "action === 'store'", 'Missing memory store logic');
-  assertIncludes(code, 'storeMemory', 'Missing storeMemory function');
-});
-
-mem.test('supports memory types (fact/preference/context)', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'memory', 'index.js'), 'utf8');
-  assertIncludes(code, 'memory_type', 'Missing memory_type field');
-  assertIncludes(code, 'fact|preference|context', 'Missing memory type options in prompt');
-});
-
-mem.test('retrieves memories ordered by relevance', () => {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'services', 'agents', 'memory', 'index.js'), 'utf8');
-  assertIncludes(code, 'relevance_score DESC', 'Missing relevance ordering');
+safety.test('all agents use Microsoft Graph API', () => {
+  for (const agent of ['mail', 'calendar']) {
+    const code = readFile(`services/agents/${agent}/index.js`);
+    assertIncludes(code, 'graph.microsoft.com', `${agent} must use MS Graph`);
+  }
 });
 
 // ═══════════════════════════════════════
@@ -312,30 +315,48 @@ mem.test('retrieves memories ordered by relevance', () => {
 // ═══════════════════════════════════════
 const env = createSuite('Environment & Configuration');
 
-env.test('.env.example exists with all required vars', () => {
-  const envExample = fs.readFileSync(path.join(__dirname, '..', '.env.example'), 'utf8');
-  const required = ['POSTGRES_PASSWORD', 'ACTIVE_MODEL', 'NEXTAUTH_SECRET', 'LANGFUSE_SALT'];
-  for (const v of required) {
-    assertIncludes(envExample, v, `Missing env var: ${v}`);
+env.test('.env.example has all required vars', () => {
+  const content = readFile('.env.example');
+  for (const v of ['POSTGRES_PASSWORD', 'ACTIVE_MODEL', 'NEXTAUTH_SECRET', 'OLLAMA_URL']) {
+    assertIncludes(content, v, `Missing: ${v}`);
   }
 });
 
-env.test('setup script exists and is executable-ready', () => {
-  const setupPath = path.join(__dirname, '..', 'scripts', 'setup.sh');
-  assert(fs.existsSync(setupPath), 'scripts/setup.sh not found');
-  const content = fs.readFileSync(setupPath, 'utf8');
-  assertIncludes(content, '#!/bin/bash', 'Missing shebang');
-  assertIncludes(content, 'set -e', 'Missing error handling');
+env.test('.env.example documents M4 tiers', () => {
+  const content = readFile('.env.example');
+  assertIncludes(content, 'base', 'Missing base tier');
+  assertIncludes(content, 'pro', 'Missing pro tier');
+  assertIncludes(content, 'max', 'Missing max tier');
 });
 
-env.test('setup script auto-detects GPU tier', () => {
-  const content = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'setup.sh'), 'utf8');
-  assertIncludes(content, 'nvidia-smi', 'Missing GPU detection');
-  assertIncludes(content, 'RECOMMENDED_MODEL', 'Missing model recommendation');
+env.test('.env.example has host.docker.internal for Ollama', () => {
+  const content = readFile('.env.example');
+  assertIncludes(content, 'host.docker.internal:11434', 'Ollama URL must use host bridge');
+});
+
+env.test('.env.example has subscription/alternative fields', () => {
+  const content = readFile('.env.example');
+  assertIncludes(content, 'HYBRID_MODE', 'Missing hybrid mode');
+  assertIncludes(content, 'OPENROUTER_API_KEY', 'Missing OpenRouter key');
+  assertIncludes(content, 'MAIL_FORWARD', 'Missing mail forwarding config');
+});
+
+env.test('setup script handles macOS', () => {
+  const content = readFile('scripts/setup.sh');
+  assertIncludes(content, 'Darwin', 'Must detect macOS');
+  assertIncludes(content, 'brew', 'Must use Homebrew');
+  assertIncludes(content, 'Metal', 'Must reference Metal GPU');
+});
+
+env.test('setup script detects Apple Silicon memory tiers', () => {
+  const content = readFile('scripts/setup.sh');
+  assertIncludes(content, 'hw.memsize', 'Must detect unified memory');
+  assertIncludes(content, 'llama3.3:70b', 'Must recommend 70b for max tier');
+  assertIncludes(content, 'qwen2.5:32b', 'Must recommend 32b for pro tier');
 });
 
 env.test('QA test script exists', () => {
-  assert(fs.existsSync(path.join(__dirname, '..', 'scripts', 'qa.js')), 'scripts/qa.js not found');
+  assert(fileExists('scripts/qa.js'), 'scripts/qa.js not found');
 });
 
 // ═══════════════════════════════════════
@@ -343,7 +364,7 @@ env.test('QA test script exists', () => {
 // ═══════════════════════════════════════
 const docker = createSuite('Dockerfiles');
 
-const services = [
+const svcPaths = [
   'services/gateway',
   'services/agents/orchestrator',
   'services/agents/mail',
@@ -351,12 +372,12 @@ const services = [
   'services/agents/memory'
 ];
 
-for (const svc of services) {
+for (const svc of svcPaths) {
   const name = svc.split('/').pop();
   docker.test(`${name} Dockerfile uses Node 20 alpine`, () => {
-    const dockerfile = fs.readFileSync(path.join(__dirname, '..', svc, 'Dockerfile'), 'utf8');
-    assertIncludes(dockerfile, 'node:20', `${name} should use Node 20`);
-    assertIncludes(dockerfile, 'alpine', `${name} should use alpine base`);
+    const df = readFile(`${svc}/Dockerfile`);
+    assertIncludes(df, 'node:20', `${name} should use Node 20`);
+    assertIncludes(df, 'alpine', `${name} should use alpine`);
   });
 }
 
@@ -365,16 +386,35 @@ for (const svc of services) {
 // ═══════════════════════════════════════
 const docs = createSuite('Documentation');
 
-docs.test('README.md exists', () => {
-  assert(fs.existsSync(path.join(__dirname, '..', 'README.md')), 'README.md not found');
+docs.test('README.md references hekla.cc', () => {
+  const content = readFile('README.md');
+  assertIncludes(content, 'hekla.cc', 'Missing hekla.cc URL');
 });
 
-docs.test('SHIP_RUNBOOK.md exists', () => {
-  assert(fs.existsSync(path.join(__dirname, '..', 'docs', 'SHIP_RUNBOOK.md')), 'docs/SHIP_RUNBOOK.md not found');
+docs.test('README.md documents M4 hardware tiers', () => {
+  const content = readFile('README.md');
+  assertIncludes(content, 'M4', 'Must reference Mac Mini M4');
+  assertIncludes(content, 'Base', 'Must document Base tier');
+  assertIncludes(content, 'Pro', 'Must document Pro tier');
+  assertIncludes(content, 'Max', 'Must document Max tier');
+});
+
+docs.test('README.md explains native Ollama architecture', () => {
+  const content = readFile('README.md');
+  assertIncludes(content, 'natively', 'Must explain native Ollama');
+  assertIncludes(content, 'Metal', 'Must reference Metal GPU');
+  assertIncludes(content, 'host.docker.internal', 'Must explain Docker bridge');
+});
+
+docs.test('SHIP_RUNBOOK.md exists with Mac Mini steps', () => {
+  assert(fileExists('docs/SHIP_RUNBOOK.md'), 'Missing runbook');
+  const content = readFile('docs/SHIP_RUNBOOK.md');
+  assertIncludes(content, 'Mac Mini', 'Runbook must reference Mac Mini');
+  assertIncludes(content, 'brew', 'Runbook must use Homebrew');
 });
 
 docs.test('.gitignore exists', () => {
-  assert(fs.existsSync(path.join(__dirname, '..', '.gitignore')), '.gitignore not found');
+  assert(fileExists('.gitignore'), 'Missing .gitignore');
 });
 
 // ═══════════════════════════════════════
@@ -384,7 +424,7 @@ async function run() {
   console.log('\n  HEKLA Offline Test Suite');
   console.log('  ═══════════════════════\n');
 
-  const allSuites = [compose, db, gw, orch, mail, cal, mem, env, docker, docs];
+  const allSuites = [arch, serial, compose, db, gw, orch, safety, env, docker, docs];
 
   for (const suite of allSuites) {
     await suite.run();

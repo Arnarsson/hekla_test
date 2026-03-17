@@ -96,7 +96,11 @@ const worker = new Worker('hekla:memory', async (job) => {
     console.error(`Memory agent error: ${error.message}`);
     await notifyOrchestrator(jobId, null, error.message);
   }
-}, { connection: redis });
+}, {
+  connection: redis,
+  concurrency: 1, // Serial processing — one job at a time, no parallelism
+  lockDuration: 120000, // 2 min lock for LLM inference time
+});
 
 async function notifyOrchestrator(jobId, response, error = null) {
   try {

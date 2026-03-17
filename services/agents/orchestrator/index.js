@@ -14,10 +14,20 @@ const ACTIVE_MODEL = process.env.ACTIVE_MODEL || 'qwen2.5:14b';
 // Redis connection
 const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
 
-// Task queues
-const mailQueue = new Queue('hekla:mail', { connection: redis });
-const calendarQueue = new Queue('hekla:calendar', { connection: redis });
-const memoryQueue = new Queue('hekla:memory', { connection: redis });
+// Task queues — serial processing only (no parallelism)
+// Each queue processes one job at a time to avoid overloading Ollama
+const queueOpts = {
+  connection: redis,
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: { type: 'exponential', delay: 5000 },
+    removeOnComplete: 100,
+    removeOnFail: 50,
+  }
+};
+const mailQueue = new Queue('hekla:mail', queueOpts);
+const calendarQueue = new Queue('hekla:calendar', queueOpts);
+const memoryQueue = new Queue('hekla:memory', queueOpts);
 
 // In-memory job status (replace with Redis in production)
 const jobStatus = new Map();
