@@ -177,7 +177,7 @@ class AuthManager {
     return `<!DOCTYPE html>
 <html>
 <head><title>HEKLA — OAuth</title></head>
-<body style="background:#0a0a0f;color:#e4e4e7;font-family:-apple-system,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+<body style="background:#0a0a0f;color:#d4d0cb;font-family:-apple-system,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
   <div style="text-align:center">
     <div style="font-size:48px;color:${color}">${icon}</div>
     <h2 style="color:${color}">${success ? 'Connected!' : 'Error'}</h2>
