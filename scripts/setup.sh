@@ -209,8 +209,12 @@ echo -e "\n${BLUE}[7/8] Electron App${NC}"
 
 if command -v node &> /dev/null; then
     echo -e "  ${CYAN}→${NC} Installing Electron app dependencies..."
-    (cd electron-app && npm install --no-fund --no-audit 2>/dev/null)
-    echo -e "  ${GREEN}✓${NC} Electron app ready"
+    if (cd electron-app && npm install --no-fund --no-audit); then
+        echo -e "  ${GREEN}✓${NC} Electron app ready"
+    else
+        echo -e "  ${RED}✗${NC} Electron app install failed. Try manually:"
+        echo "    cd electron-app && npm install"
+    fi
 else
     echo -e "  ${YELLOW}!${NC} Node.js not found — install with: brew install node"
     echo "    Then run: cd electron-app && npm install"
@@ -262,9 +266,17 @@ if [ -f electron-app/node_modules/.bin/electron ]; then
     echo -e "  ${CYAN}→${NC} Launching HEKLA Desktop app..."
     echo "    The setup wizard will guide you through connecting your Microsoft account."
     echo ""
-    (cd electron-app && ACTIVE_MODEL=${RECOMMENDED_MODEL} npm start &) 2>/dev/null
-    echo -e "  ${GREEN}✓${NC} HEKLA Desktop launched"
+    (cd electron-app && ACTIVE_MODEL=${RECOMMENDED_MODEL} npm start &)
+    ELECTRON_PID=$!
+    sleep 2
+    if kill -0 $ELECTRON_PID 2>/dev/null; then
+        echo -e "  ${GREEN}✓${NC} HEKLA Desktop launched (PID: ${ELECTRON_PID})"
+    else
+        echo -e "  ${RED}✗${NC} HEKLA Desktop failed to start. Try manually:"
+        echo "    cd electron-app && npm start"
+    fi
 else
+    echo -e "  ${RED}✗${NC} Electron binary not found — npm install may have failed."
     echo "  To launch the desktop app:"
     echo "    cd electron-app && npm install && npm start"
 fi
