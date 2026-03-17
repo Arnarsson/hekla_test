@@ -1,0 +1,27 @@
+{
+  "os": "darwin",
+  "arch": "arm64",
+  "cpuModel": "Apple M4",
+  "gpuType": "metal",
+  "gpuVram": 24576,
+  "totalRam": 24576,
+  "diskFree": 65000,
+  "pkgManager": "brew",
+  "scheduler": "launchd",
+  "dockerRuntime": "desktop",
+  "isWSL": false,
+  "isAppleSilicon": true,
+  "isDGXSpark": false,
+  "hostname": "test-mac",
+  "username": "testuser",
+  "existingInstalls": {
+    "docker": true,
+    "dockerVersion": "27.0.0",
+    "ollama": true,
+    "ollamaVersion": "0.3.0",
+    "ollamaModels": ["llama3.2:3b"],
+    "bun": true,
+    "bunVersion": "1.1.0",
+    "tailscale": false
+  }
+}

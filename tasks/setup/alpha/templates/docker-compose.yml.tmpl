@@ -1,0 +1,176 @@
+version: "3.8"
+
+services:
+  # begin:ollama
+  ollama:
+    image: ollama/ollama:latest
+    container_name: hekla-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    # begin:gpu-reservation
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # end:gpu-reservation
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - hekla-net
+  # end:ollama
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: hekla-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hekla
+      POSTGRES_USER: hekla
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - {{INIT_SQL_PATH}}:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hekla"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hekla-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: hekla-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hekla-net
+
+  gateway:
+    build: {{SERVICES_PATH}}/gateway
+    container_name: hekla-gateway
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      REDIS_URL: redis://redis:6379
+      OLLAMA_URL: {{OLLAMA_URL}}
+      DATABASE_URL: postgresql://hekla:${POSTGRES_PASSWORD}@postgres:5432/hekla
+      ORCHESTRATOR_URL: http://orchestrator:3010
+      INFERENCE_MODE: {{INFERENCE_MODE}}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - hekla-net
+
+  orchestrator:
+    build: {{SERVICES_PATH}}/agents/orchestrator
+    container_name: hekla-orchestrator
+    restart: unless-stopped
+    environment:
+      PORT: 3010
+      REDIS_URL: redis://redis:6379
+      OLLAMA_URL: {{OLLAMA_URL}}
+      DATABASE_URL: postgresql://hekla:${POSTGRES_PASSWORD}@postgres:5432/hekla
+      ACTIVE_MODEL: ${ACTIVE_MODEL}
+      INFERENCE_MODE: {{INFERENCE_MODE}}
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - hekla-net
+
+  mail-agent:
+    build: {{SERVICES_PATH}}/agents/mail
+    container_name: hekla-mail-agent
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      OLLAMA_URL: {{OLLAMA_URL}}
+      DATABASE_URL: postgresql://hekla:${POSTGRES_PASSWORD}@postgres:5432/hekla
+      ACTIVE_MODEL: ${ACTIVE_MODEL}
+      INFERENCE_MODE: {{INFERENCE_MODE}}
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - hekla-net
+
+  calendar-agent:
+    build: {{SERVICES_PATH}}/agents/calendar
+    container_name: hekla-calendar-agent
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      OLLAMA_URL: {{OLLAMA_URL}}
+      DATABASE_URL: postgresql://hekla:${POSTGRES_PASSWORD}@postgres:5432/hekla
+      ACTIVE_MODEL: ${ACTIVE_MODEL}
+      INFERENCE_MODE: {{INFERENCE_MODE}}
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - hekla-net
+
+  memory-agent:
+    build: {{SERVICES_PATH}}/agents/memory
+    container_name: hekla-memory-agent
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      OLLAMA_URL: {{OLLAMA_URL}}
+      DATABASE_URL: postgresql://hekla:${POSTGRES_PASSWORD}@postgres:5432/hekla
+      ACTIVE_MODEL: ${ACTIVE_MODEL}
+      INFERENCE_MODE: {{INFERENCE_MODE}}
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - hekla-net
+
+  langfuse:
+    image: ghcr.io/langfuse/langfuse:latest
+    container_name: hekla-langfuse
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      DATABASE_URL: postgresql://hekla:${POSTGRES_PASSWORD}@postgres:5432/hekla
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: http://localhost:3001
+      SALT: ${LANGFUSE_SALT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - hekla-net
+
+volumes:
+  postgres-data:
+  redis-data:
+  # CONDITIONAL: OLLAMA_START
+  ollama-data:
+  # end:ollama
+
+networks:
+  hekla-net:
+    driver: bridge

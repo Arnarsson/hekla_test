@@ -1,0 +1,24 @@
+{
+  "os": "linux",
+  "arch": "x64",
+  "cpuModel": "Intel Core i5-12400",
+  "gpuType": "none",
+  "gpuVram": 0,
+  "totalRam": 16384,
+  "diskFree": 200000,
+  "pkgManager": "apt",
+  "scheduler": "systemd",
+  "dockerRuntime": "engine",
+  "isWSL": false,
+  "isAppleSilicon": false,
+  "isDGXSpark": false,
+  "hostname": "thin-client",
+  "username": "hekla",
+  "existingInstalls": {
+    "docker": false,
+    "ollama": false,
+    "ollamaModels": [],
+    "bun": false,
+    "tailscale": false
+  }
+}

@@ -1,0 +1,17 @@
+[Unit]
+Description=HEKLA Morning Briefing
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart={{HEKLA_INSTALL_PATH}}/scripts/morning-briefing.sh
+User={{SERVICE_USER}}
+Environment=HEKLA_INSTALL_PATH={{HEKLA_INSTALL_PATH}}
+Environment=CUSTOMER_ID={{CUSTOMER_ID}}
+Environment=TIMEZONE={{TIMEZONE}}
+StandardOutput=append:{{HEKLA_LOG_PATH}}/morning-briefing.log
+StandardError=append:{{HEKLA_LOG_PATH}}/morning-briefing.log
+
+[Install]
+WantedBy=multi-user.target

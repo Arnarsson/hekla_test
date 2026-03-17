@@ -1,0 +1,26 @@
+{
+  "os": "linux",
+  "arch": "x64",
+  "cpuModel": "AMD Ryzen 9 7950X",
+  "gpuType": "cuda",
+  "gpuVram": 16384,
+  "totalRam": 65536,
+  "diskFree": 500000,
+  "pkgManager": "apt",
+  "scheduler": "systemd",
+  "dockerRuntime": "engine",
+  "isWSL": false,
+  "isAppleSilicon": false,
+  "isDGXSpark": false,
+  "hostname": "gpu-server",
+  "username": "hekla",
+  "existingInstalls": {
+    "docker": true,
+    "dockerVersion": "26.0.0",
+    "ollama": false,
+    "ollamaModels": [],
+    "bun": false,
+    "tailscale": true,
+    "tailscaleVersion": "1.60.0"
+  }
+}

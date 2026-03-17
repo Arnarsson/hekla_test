@@ -1,0 +1,25 @@
+{
+  "os": "linux",
+  "arch": "arm64",
+  "cpuModel": "NVIDIA Grace",
+  "gpuType": "cuda",
+  "gpuVram": 131072,
+  "totalRam": 131072,
+  "diskFree": 1000000,
+  "pkgManager": "apt",
+  "scheduler": "systemd",
+  "dockerRuntime": "engine",
+  "isWSL": false,
+  "isAppleSilicon": false,
+  "isDGXSpark": true,
+  "hostname": "dgx-spark",
+  "username": "nvidia",
+  "existingInstalls": {
+    "docker": true,
+    "dockerVersion": "27.0.0",
+    "ollama": false,
+    "ollamaModels": [],
+    "bun": false,
+    "tailscale": false
+  }
+}

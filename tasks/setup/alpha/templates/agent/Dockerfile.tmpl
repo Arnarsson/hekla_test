@@ -1,0 +1,21 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies first for layer caching
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev
+
+# Copy application source
+COPY . .
+
+# Build if a build step exists
+RUN if [ -f "tsconfig.json" ]; then npm run build 2>/dev/null || true; fi
+
+ENV NODE_ENV=production
+ENV PORT={{AGENT_PORT}}
+ENV AGENT_NAME={{AGENT_NAME}}
+
+EXPOSE {{AGENT_PORT}}
+
+CMD ["node", "{{AGENT_ENTRYPOINT}}"]

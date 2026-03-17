@@ -1,0 +1,28 @@
+{
+  "os": "win32",
+  "arch": "x64",
+  "cpuModel": "Intel Core i7-13700K",
+  "gpuType": "cuda",
+  "gpuVram": 12288,
+  "totalRam": 32768,
+  "diskFree": 300000,
+  "pkgManager": "winget",
+  "scheduler": "taskschd",
+  "dockerRuntime": "desktop",
+  "isWSL": true,
+  "isAppleSilicon": false,
+  "isDGXSpark": false,
+  "hostname": "win-dev",
+  "username": "hekla",
+  "existingInstalls": {
+    "docker": true,
+    "dockerVersion": "26.1.0",
+    "ollama": true,
+    "ollamaVersion": "0.2.0",
+    "ollamaModels": ["phi3:mini"],
+    "bun": true,
+    "bunVersion": "1.0.0",
+    "tailscale": true,
+    "tailscaleVersion": "1.58.0"
+  }
+}
