@@ -168,7 +168,7 @@ function registerIpcHandlers() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'qwen2.5:32b',
+          model: process.env.ACTIVE_MODEL || 'qwen2.5:7b',
           messages: [{ role: 'user', content: 'Say OK' }],
           stream: false,
         }),

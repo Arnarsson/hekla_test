@@ -26,7 +26,7 @@ echo "  https://www.hekla.cc/"
 echo ""
 
 # ─── Step 1: System Check ────────────────
-echo -e "${BLUE}[1/7] System Check${NC}"
+echo -e "${BLUE}[1/8] System Check${NC}"
 
 # Verify macOS
 if [[ "$(uname)" != "Darwin" ]]; then
@@ -81,7 +81,7 @@ else
 fi
 
 # ─── Step 2: Dependencies ────────────────
-echo -e "\n${BLUE}[2/7] Dependencies${NC}"
+echo -e "\n${BLUE}[2/8] Dependencies${NC}"
 
 # Homebrew
 if command -v brew &> /dev/null; then
@@ -108,6 +108,16 @@ else
     exit 1
 fi
 
+# Node.js (for Electron app)
+if command -v node &> /dev/null; then
+    NODE_VERSION=$(node --version)
+    echo -e "  ${GREEN}✓${NC} Node.js installed: ${NODE_VERSION}"
+else
+    echo -e "  ${CYAN}→${NC} Installing Node.js..."
+    brew install node
+    echo -e "  ${GREEN}✓${NC} Node.js installed"
+fi
+
 # Ollama (native — NOT in Docker)
 if command -v ollama &> /dev/null; then
     OLLAMA_VERSION=$(ollama --version 2>/dev/null || echo "unknown")
@@ -119,7 +129,7 @@ else
 fi
 
 # ─── Step 3: Environment Setup ────────────
-echo -e "\n${BLUE}[3/7] Environment Configuration${NC}"
+echo -e "\n${BLUE}[3/8] Environment Configuration${NC}"
 
 if [ ! -f .env ]; then
     cp .env.example .env
@@ -143,7 +153,7 @@ else
 fi
 
 # ─── Step 4: Start Ollama (native) ────────
-echo -e "\n${BLUE}[4/7] Starting Ollama (native Metal acceleration)${NC}"
+echo -e "\n${BLUE}[4/8] Starting Ollama (native Metal acceleration)${NC}"
 
 # Check if Ollama is already running
 if curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
@@ -166,13 +176,13 @@ else
 fi
 
 # ─── Step 5: Pull Model ──────────────────
-echo -e "\n${BLUE}[5/7] Pulling Model: ${RECOMMENDED_MODEL}${NC}"
+echo -e "\n${BLUE}[5/8] Pulling Model: ${RECOMMENDED_MODEL}${NC}"
 echo -e "  ${CYAN}→${NC} This may take a while depending on your connection..."
 ollama pull ${RECOMMENDED_MODEL}
 echo -e "  ${GREEN}✓${NC} Model ready"
 
 # ─── Step 6: Start Docker Stack ──────────
-echo -e "\n${BLUE}[6/7] Starting Docker Stack${NC}"
+echo -e "\n${BLUE}[6/8] Starting Docker Stack${NC}"
 echo -e "  ${CYAN}→${NC} Ollama runs natively — Docker containers connect via host.docker.internal"
 if [ -n "$COMPOSE_PROFILE" ]; then
     echo -e "  ${CYAN}→${NC} Starting with Langfuse (enough memory)"
@@ -194,8 +204,20 @@ for service in "${SERVICES[@]}"; do
     fi
 done
 
-# ─── Step 7: Smoke Test ──────────────────
-echo -e "\n${BLUE}[7/7] Smoke Test${NC}"
+# ─── Step 7: Electron App ──────────────────
+echo -e "\n${BLUE}[7/8] Electron App${NC}"
+
+if command -v node &> /dev/null; then
+    echo -e "  ${CYAN}→${NC} Installing Electron app dependencies..."
+    (cd electron-app && npm install --no-fund --no-audit 2>/dev/null)
+    echo -e "  ${GREEN}✓${NC} Electron app ready"
+else
+    echo -e "  ${YELLOW}!${NC} Node.js not found — install with: brew install node"
+    echo "    Then run: cd electron-app && npm install"
+fi
+
+# ─── Step 8: Smoke Test ──────────────────
+echo -e "\n${BLUE}[8/8] Smoke Test${NC}"
 echo -e "  ${CYAN}→${NC} Testing Ollama inference (Metal GPU)..."
 
 RESPONSE=$(curl -sf http://localhost:11434/api/chat -d '{
@@ -229,13 +251,23 @@ echo "  Model:    ${RECOMMENDED_MODEL}"
 echo ""
 echo "  Services running:"
 echo "  • Gateway:  http://localhost:3000"
-echo "  • Langfuse: http://localhost:3001"
+if [ -n "$COMPOSE_PROFILE" ]; then
+    echo "  • Langfuse: http://localhost:3001"
+fi
 echo "  • Ollama:   http://localhost:11434 (native Metal)"
 echo ""
-echo "  Next steps:"
-echo "  1. Run QA tests: node scripts/qa.js"
-echo "  2. Open the Electron app for OAuth setup"
-echo "  3. Connect via Telegram or test the API"
+
+# Launch Electron app
+if [ -f electron-app/node_modules/.bin/electron ]; then
+    echo -e "  ${CYAN}→${NC} Launching HEKLA Desktop app..."
+    echo "    The setup wizard will guide you through connecting your Microsoft account."
+    echo ""
+    (cd electron-app && ACTIVE_MODEL=${RECOMMENDED_MODEL} npm start &) 2>/dev/null
+    echo -e "  ${GREEN}✓${NC} HEKLA Desktop launched"
+else
+    echo "  To launch the desktop app:"
+    echo "    cd electron-app && npm install && npm start"
+fi
 echo ""
 echo "  https://www.hekla.cc/"
 echo ""

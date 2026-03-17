@@ -367,6 +367,13 @@ env.test('setup script handles macOS', () => {
   assertIncludes(content, 'Metal', 'Must reference Metal GPU');
 });
 
+env.test('setup script installs and launches Electron app', () => {
+  const content = readFile('scripts/setup.sh');
+  assertIncludes(content, 'electron-app', 'Must install Electron app dependencies');
+  assertIncludes(content, 'npm install', 'Must run npm install for Electron app');
+  assertIncludes(content, 'npm start', 'Must launch Electron app after setup');
+});
+
 env.test('setup script detects Apple Silicon memory tiers', () => {
   const content = readFile('scripts/setup.sh');
   assertIncludes(content, 'hw.memsize', 'Must detect unified memory');
