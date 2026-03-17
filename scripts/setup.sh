@@ -50,19 +50,28 @@ if [[ "$(uname)" == "Darwin" ]]; then
     if [ "$TOTAL_MEM_GB" -ge 64 ]; then
         RECOMMENDED_MODEL="llama3.3:70b"
         TIER="max"
+        COMPOSE_PROFILE="--profile full"
         echo -e "  ${CYAN}→${NC} Tier: ${GREEN}MAX${NC} — Near-SOTA local performance"
     elif [ "$TOTAL_MEM_GB" -ge 36 ]; then
         RECOMMENDED_MODEL="qwen2.5:32b"
         TIER="pro"
+        COMPOSE_PROFILE="--profile full"
         echo -e "  ${CYAN}→${NC} Tier: ${GREEN}PRO${NC} — Full capability, optimal balance"
     elif [ "$TOTAL_MEM_GB" -ge 24 ]; then
         RECOMMENDED_MODEL="qwen2.5:14b"
-        TIER="base"
-        echo -e "  ${CYAN}→${NC} Tier: ${YELLOW}BASE${NC} — Good for core PA tasks"
-    else
+        TIER="base+"
+        COMPOSE_PROFILE=""
+        echo -e "  ${CYAN}→${NC} Tier: ${YELLOW}BASE+${NC} — Good for core PA tasks"
+    elif [ "$TOTAL_MEM_GB" -ge 16 ]; then
         RECOMMENDED_MODEL="qwen2.5:7b"
         TIER="base"
-        echo -e "  ${CYAN}→${NC} Tier: ${YELLOW}BASE${NC} — Limited, consider upgrading"
+        COMPOSE_PROFILE=""
+        echo -e "  ${CYAN}→${NC} Tier: ${YELLOW}BASE${NC} — Core PA tasks (Langfuse disabled to save RAM)"
+    else
+        RECOMMENDED_MODEL="qwen2.5:3b"
+        TIER="mini"
+        COMPOSE_PROFILE=""
+        echo -e "  ${CYAN}→${NC} Tier: ${RED}MINI${NC} — Very limited, 16GB minimum recommended"
     fi
     echo -e "  ${CYAN}→${NC} Recommended model: ${RECOMMENDED_MODEL}"
 else
@@ -165,7 +174,13 @@ echo -e "  ${GREEN}✓${NC} Model ready"
 # ─── Step 6: Start Docker Stack ──────────
 echo -e "\n${BLUE}[6/7] Starting Docker Stack${NC}"
 echo -e "  ${CYAN}→${NC} Ollama runs natively — Docker containers connect via host.docker.internal"
-docker compose up -d
+if [ -n "$COMPOSE_PROFILE" ]; then
+    echo -e "  ${CYAN}→${NC} Starting with Langfuse (enough memory)"
+    docker compose ${COMPOSE_PROFILE} up -d
+else
+    echo -e "  ${CYAN}→${NC} Starting core services (Langfuse skipped to save RAM)"
+    docker compose up -d
+fi
 echo -e "  ${CYAN}→${NC} Waiting for services..."
 sleep 10
 

@@ -90,12 +90,15 @@ if [[ "$(uname)" == "Darwin" ]]; then
 
     if [ "$TOTAL_MEM_GB" -ge 64 ]; then
         echo -e "    ${CYAN}→ Tier: MAX — llama3.3:70b (near-SOTA)${NC}"
+        echo -e "    ${CYAN}→ Start: docker compose --profile full up -d${NC}"
     elif [ "$TOTAL_MEM_GB" -ge 36 ]; then
         echo -e "    ${CYAN}→ Tier: PRO — qwen2.5:32b (optimal)${NC}"
-    elif [ "$TOTAL_MEM_GB" -ge 24 ]; then
-        echo -e "    ${CYAN}→ Tier: BASE — qwen2.5:14b${NC}"
+        echo -e "    ${CYAN}→ Start: docker compose --profile full up -d${NC}"
+    elif [ "$TOTAL_MEM_GB" -ge 16 ]; then
+        echo -e "    ${CYAN}→ Tier: BASE — qwen2.5:7b${NC}"
+        echo -e "    ${CYAN}→ Start: docker compose up -d  (Langfuse disabled to save RAM)${NC}"
     else
-        warn "Only ${TOTAL_MEM_GB}GB — performance will be limited"
+        warn "Only ${TOTAL_MEM_GB}GB — minimum 16GB required"
     fi
 else
     warn "Not running on macOS (target: Mac Mini M4)"
@@ -207,9 +210,10 @@ echo ""
 
 if [ $ERRORS -eq 0 ]; then
     echo "  Ready to start:"
-    echo "    1. ollama serve              # Start Ollama (native Metal)"
-    echo "    2. docker compose up -d      # Start agents + infra"
-    echo "    3. node scripts/qa.js        # Run live QA tests"
+    echo "    1. ollama serve                           # Start Ollama (native Metal)"
+    echo "    2. docker compose up -d                   # Base (16GB) — core services"
+    echo "       docker compose --profile full up -d    # Full (36GB+) — adds Langfuse"
+    echo "    3. node scripts/qa.js                     # Run live QA tests"
     echo ""
     echo "  https://www.hekla.cc/"
     echo ""

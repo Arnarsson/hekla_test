@@ -66,14 +66,16 @@ Customers order the device, we set it up, ship it ready to go.
 
 ## Hardware Tiers (Mac Mini M4)
 
-| Tier | Unified Memory | Model | Performance |
-|------|---------------|-------|-------------|
-| **Base** | 16GB (M4) | qwen2.5:7b / 14b | Core PA tasks, some lag |
-| **Pro** | 36GB (M4 Pro) | qwen2.5:32b | Full capability, optimal |
-| **Max** | 64–128GB (M4 Max) | llama3.3:70b | Near-SOTA local inference |
+| Tier | Unified Memory | Model | Docker | Performance |
+|------|---------------|-------|--------|-------------|
+| **Base** | 16GB (M4) | qwen2.5:7b | `docker compose up -d` | Core PA tasks, fast responses |
+| **Base+** | 24GB | qwen2.5:14b | `docker compose up -d` | Better reasoning |
+| **Pro** | 36GB (M4 Pro) | qwen2.5:32b | `docker compose --profile full up -d` | Full capability, optimal |
+| **Max** | 64–128GB (M4 Max) | llama3.3:70b | `docker compose --profile full up -d` | Near-SOTA local inference |
 
-> Realistically, 30B+ models need 36GB+ unified memory. The Pro tier is the sweet spot.
-> Power/privacy users who want near-SOTA performance should max out at 64GB+.
+> The base M4 Mac Mini (16GB) works well — `qwen2.5:7b` fits comfortably with all Docker services.
+> Langfuse observability is enabled via `--profile full` on 36GB+ machines to save RAM on base tier.
+> The Pro tier (36GB) is the sweet spot for full capability.
 
 ---
 
@@ -83,7 +85,7 @@ Customers order the device, we set it up, ship it ready to go.
 # 1. Copy environment template
 cp .env.example .env
 
-# 2. Run setup (detects hardware, installs Ollama, pulls model, starts stack)
+# 2. Run setup (detects hardware, picks model, starts stack)
 ./scripts/setup.sh
 
 # 3. Run QA tests
@@ -92,6 +94,9 @@ node scripts/qa.js
 # 4. Preview stack health (no Docker required)
 ./scripts/preview.sh
 ```
+
+> On the base M4 Mac Mini (16GB), setup automatically picks `qwen2.5:7b` and skips Langfuse to save RAM.
+> On 36GB+ machines, it picks a larger model and enables full observability.
 
 ---
 
@@ -204,7 +209,7 @@ hekla/
 
 ## Risk Flags
 
-1. **16GB Base tier** — Will show lag with 14b models. Consider 24GB minimum for demos.
+1. **16GB Base tier** — Works well with 7b models. Langfuse auto-disabled to save RAM. Consider 24GB+ for demos.
 2. **Onboarding UX** — The setup assistant (Phase 3) is where HEKLA earns customer trust. Must be flawless.
 3. **OAuth per-tenant** — Each corporate client has different Azure/Entra admin. Need self-serve consent flow.
 4. **Serial queue** — One LLM call at a time means latency under load. Acceptable for single-user device.

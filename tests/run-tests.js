@@ -89,7 +89,7 @@ arch.test('no GPU passthrough in base compose', () => {
 
 arch.test('agents have memory limits for isolation', () => {
   const content = readFile('docker-compose.yml');
-  assertIncludes(content, 'memory: 512M', 'Agents should have memory limits for fault isolation');
+  assertIncludes(content, 'memory: 256M', 'Agent containers should have tight memory limits (256M for Node.js)');
 });
 
 arch.test('all services have restart: unless-stopped', () => {
@@ -99,9 +99,9 @@ arch.test('all services have restart: unless-stopped', () => {
   assert(restartCount >= 7, `Expected at least 7 restart policies, found ${restartCount}`);
 });
 
-arch.test('default model is 32b (optimal for M4 Pro 36GB)', () => {
+arch.test('default model is 7b (safe for base M4 16GB)', () => {
   const content = readFile('docker-compose.yml');
-  assertIncludes(content, 'qwen2.5:32b', 'Default model should be 32b for M4 Pro tier');
+  assertIncludes(content, 'qwen2.5:7b', 'Default model should be 7b to work on base M4 (16GB)');
 });
 
 // ═══════════════════════════════════════
@@ -172,6 +172,12 @@ compose.test('HEKLA branding in compose header', () => {
   const content = readFile('docker-compose.yml');
   assertIncludes(content, 'HEKLA', 'Missing HEKLA branding');
   assertIncludes(content, 'hekla.cc', 'Missing hekla.cc URL');
+});
+
+compose.test('Langfuse is optional via profile (saves RAM on 16GB)', () => {
+  const content = readFile('docker-compose.yml');
+  assertIncludes(content, 'profiles:', 'Langfuse should use Docker Compose profiles');
+  assertIncludes(content, '- full', 'Langfuse should be in the "full" profile');
 });
 
 // ═══════════════════════════════════════
@@ -366,6 +372,7 @@ env.test('setup script detects Apple Silicon memory tiers', () => {
   assertIncludes(content, 'hw.memsize', 'Must detect unified memory');
   assertIncludes(content, 'llama3.3:70b', 'Must recommend 70b for max tier');
   assertIncludes(content, 'qwen2.5:32b', 'Must recommend 32b for pro tier');
+  assertIncludes(content, 'qwen2.5:7b', 'Must recommend 7b for base 16GB tier');
 });
 
 env.test('QA test script exists', () => {
