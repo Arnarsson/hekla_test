@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HEKLA — Settings</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="titlebar"><h1>HEKLA</h1></div>
+
+  <div class="app fade-in">
+    <nav class="nav">
+      <button class="nav-btn" data-page="dashboard">Dashboard</button>
+      <button class="nav-btn active" data-page="settings">Settings</button>
+    </nav>
+
+    <!-- Connected Accounts -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Connected Accounts</span>
+      </div>
+
+      <div class="service-row">
+        <div>
+          <div class="service-name">Microsoft</div>
+          <div class="service-detail" id="ms-info">Checking...</div>
+        </div>
+        <div>
+          <button class="btn btn-primary btn-sm" id="ms-connect" style="display:none">Connect</button>
+          <button class="btn btn-danger btn-sm" id="ms-disconnect" style="display:none">Disconnect</button>
+        </div>
+      </div>
+
+      <div style="margin-top: 12px">
+        <div class="field">
+          <label class="label">Azure App Client ID</label>
+          <input class="input" id="azure-client-id" placeholder="From Azure App Registration">
+        </div>
+        <div class="field">
+          <label class="label">Azure Tenant ID</label>
+          <input class="input" id="azure-tenant-id" placeholder="common (default)">
+        </div>
+        <button class="btn btn-secondary" id="save-azure">Save Azure Config</button>
+      </div>
+    </div>
+
+    <!-- Model Selection -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Model</span>
+      </div>
+
+      <div id="model-info" class="service-detail" style="margin-bottom: 12px">Loading...</div>
+
+      <div class="field">
+        <label class="label">Active Model</label>
+        <select class="input" id="model-select">
+          <option value="">Loading models...</option>
+        </select>
+      </div>
+
+      <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 12px">
+        <strong>Recommended by tier:</strong><br>
+        Base (16GB): qwen2.5:7b or qwen2.5:14b<br>
+        Pro (36GB): qwen2.5:32b<br>
+        Max (64GB+): llama3.3:70b
+      </div>
+    </div>
+
+    <!-- Device Info -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Device</span>
+      </div>
+
+      <div class="field">
+        <label class="label">Device Name</label>
+        <input class="input" id="device-name">
+      </div>
+
+      <div class="field">
+        <label class="label">Gateway URL</label>
+        <input class="input" id="gateway-url">
+      </div>
+
+      <div class="field">
+        <label class="label">Ollama URL</label>
+        <input class="input" id="ollama-url">
+      </div>
+
+      <button class="btn btn-secondary" id="save-device">Save Device Config</button>
+    </div>
+
+    <!-- Danger zone -->
+    <div class="card" style="border-color: rgba(239, 68, 68, 0.3)">
+      <div class="card-header">
+        <span class="card-title" style="color: var(--red)">Reset</span>
+      </div>
+      <p class="service-detail" style="margin-bottom: 12px">
+        Re-run the setup wizard. Your data in PostgreSQL is not affected.
+      </p>
+      <button class="btn btn-danger" id="reset-btn">Reset Setup</button>
+    </div>
+  </div>
+
+  <script>
+    // Navigation
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const page = btn.dataset.page;
+        if (page !== 'settings') window.hekla.navigate(page);
+      });
+    });
+
+    // Load current config
+    async function loadSettings() {
+      const [deviceName, gatewayUrl, ollamaUrl, azureClientId, azureTenantId] = await Promise.all([
+        window.hekla.getConfig('deviceName'),
+        window.hekla.getConfig('gatewayUrl'),
+        window.hekla.getConfig('ollamaUrl'),
+        window.hekla.getConfig('azureClientId'),
+        window.hekla.getConfig('azureTenantId'),
+      ]);
+
+      document.getElementById('device-name').value = deviceName || '';
+      document.getElementById('gateway-url').value = gatewayUrl || 'http://localhost:3000';
+      document.getElementById('ollama-url').value = ollamaUrl || 'http://localhost:11434';
+      document.getElementById('azure-client-id').value = azureClientId || '';
+      document.getElementById('azure-tenant-id').value = azureTenantId || 'common';
+    }
+
+    // Auth status
+    async function refreshAuth() {
+      const auth = await window.hekla.getAuthStatus();
+      const info = document.getElementById('ms-info');
+      const connectBtn = document.getElementById('ms-connect');
+      const disconnectBtn = document.getElementById('ms-disconnect');
+
+      if (auth.authenticated) {
+        info.textContent = `${auth.name} (${auth.email})`;
+        connectBtn.style.display = 'none';
+        disconnectBtn.style.display = '';
+      } else {
+        info.textContent = 'Not connected';
+        connectBtn.style.display = '';
+        disconnectBtn.style.display = 'none';
+      }
+    }
+
+    // Models
+    async function loadModels() {
+      const data = await window.hekla.getModels();
+      const models = data.models || [];
+      const select = document.getElementById('model-select');
+      const info = document.getElementById('model-info');
+
+      select.innerHTML = '';
+      if (models.length === 0) {
+        select.innerHTML = '<option value="">No models found</option>';
+        info.textContent = 'Ollama not running or no models loaded.';
+      } else {
+        info.textContent = `${models.length} model(s) available`;
+        for (const m of models) {
+          const opt = document.createElement('option');
+          opt.value = m.name;
+          opt.textContent = m.name;
+          select.appendChild(opt);
+        }
+      }
+    }
+
+    // Save handlers
+    document.getElementById('save-azure').addEventListener('click', async () => {
+      const clientId = document.getElementById('azure-client-id').value.trim();
+      const tenantId = document.getElementById('azure-tenant-id').value.trim() || 'common';
+      await window.hekla.setConfig('azureClientId', clientId);
+      await window.hekla.setConfig('azureTenantId', tenantId);
+      alert('Azure config saved.');
+    });
+
+    document.getElementById('save-device').addEventListener('click', async () => {
+      await window.hekla.setConfig('deviceName', document.getElementById('device-name').value.trim());
+      await window.hekla.setConfig('gatewayUrl', document.getElementById('gateway-url').value.trim());
+      await window.hekla.setConfig('ollamaUrl', document.getElementById('ollama-url').value.trim());
+      alert('Device config saved.');
+    });
+
+    // OAuth buttons
+    document.getElementById('ms-connect').addEventListener('click', async () => {
+      const clientId = document.getElementById('azure-client-id').value.trim();
+      if (!clientId) {
+        alert('Enter your Azure Client ID first.');
+        return;
+      }
+      await window.hekla.setConfig('azureClientId', clientId);
+      try {
+        await window.hekla.startMicrosoftAuth();
+        refreshAuth();
+      } catch (e) {
+        alert(`OAuth error: ${e.message}`);
+      }
+    });
+
+    document.getElementById('ms-disconnect').addEventListener('click', async () => {
+      if (confirm('Disconnect Microsoft account? Agents will lose mail/calendar access.')) {
+        await window.hekla.logout();
+        refreshAuth();
+      }
+    });
+
+    // Reset
+    document.getElementById('reset-btn').addEventListener('click', async () => {
+      if (confirm('Reset setup wizard? You will need to go through setup again.')) {
+        await window.hekla.setConfig('setupComplete', false);
+        window.hekla.navigate('setup');
+      }
+    });
+
+    // Init
+    loadSettings();
+    refreshAuth();
+    loadModels();
+  </script>
+</body>
+</html>

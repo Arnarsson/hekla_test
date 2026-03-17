@@ -418,13 +418,142 @@ docs.test('.gitignore exists', () => {
 });
 
 // ═══════════════════════════════════════
+// Test Suite: Electron App
+// ═══════════════════════════════════════
+const electron = createSuite('Electron App');
+
+electron.test('package.json exists with correct name', () => {
+  assert(fileExists('electron-app/package.json'), 'Missing electron-app/package.json');
+  const pkg = JSON.parse(readFile('electron-app/package.json'));
+  assert(pkg.name === 'hekla-desktop', `Expected name hekla-desktop, got ${pkg.name}`);
+  assert(pkg.main === 'main.js', 'main should be main.js');
+});
+
+electron.test('has MSAL dependency for Microsoft OAuth', () => {
+  const pkg = JSON.parse(readFile('electron-app/package.json'));
+  assert(pkg.dependencies['@azure/msal-node'], 'Missing @azure/msal-node dependency');
+});
+
+electron.test('has electron-store for local config', () => {
+  const pkg = JSON.parse(readFile('electron-app/package.json'));
+  assert(pkg.dependencies['electron-store'], 'Missing electron-store dependency');
+});
+
+electron.test('main process exists with window creation', () => {
+  assert(fileExists('electron-app/main.js'), 'Missing main.js');
+  const code = readFile('electron-app/main.js');
+  assertIncludes(code, 'BrowserWindow', 'Must create BrowserWindow');
+  assertIncludes(code, 'contextIsolation: true', 'Must use context isolation');
+  assertIncludes(code, 'nodeIntegration: false', 'Must disable nodeIntegration');
+});
+
+electron.test('preload.js exposes hekla API bridge', () => {
+  assert(fileExists('electron-app/preload.js'), 'Missing preload.js');
+  const code = readFile('electron-app/preload.js');
+  assertIncludes(code, "exposeInMainWorld('hekla'", 'Must expose hekla API');
+  assertIncludes(code, 'startMicrosoftAuth', 'Must expose OAuth');
+  assertIncludes(code, 'getServices', 'Must expose service status');
+  assertIncludes(code, 'getModels', 'Must expose model listing');
+});
+
+electron.test('auth module uses MSAL with auth code flow', () => {
+  assert(fileExists('electron-app/src/auth.js'), 'Missing auth.js');
+  const code = readFile('electron-app/src/auth.js');
+  assertIncludes(code, 'PublicClientApplication', 'Must use MSAL PublicClientApplication');
+  assertIncludes(code, 'acquireTokenByCode', 'Must use auth code flow');
+  assertIncludes(code, 'Mail.Read', 'Must request Mail.Read scope');
+  assertIncludes(code, 'Calendars.ReadWrite', 'Must request Calendar scope');
+  assertIncludes(code, 'offline_access', 'Must request offline_access for refresh tokens');
+});
+
+electron.test('auth saves tokens to backend gateway', () => {
+  const code = readFile('electron-app/src/auth.js');
+  assertIncludes(code, '_saveTokensToBackend', 'Must save tokens to backend');
+  assertIncludes(code, '/api/oauth/token', 'Must POST to gateway oauth endpoint');
+});
+
+electron.test('main routes to setup wizard on first boot', () => {
+  const code = readFile('electron-app/main.js');
+  assertIncludes(code, 'setupComplete', 'Must check setupComplete flag');
+  assertIncludes(code, 'setup.html', 'Must load setup page on first boot');
+  assertIncludes(code, 'dashboard.html', 'Must load dashboard when setup done');
+});
+
+electron.test('setup wizard page exists with all steps', () => {
+  assert(fileExists('electron-app/src/pages/setup.html'), 'Missing setup.html');
+  const html = readFile('electron-app/src/pages/setup.html');
+  assertIncludes(html, 'step-0', 'Must have welcome step');
+  assertIncludes(html, 'step-1', 'Must have system check step');
+  assertIncludes(html, 'step-2', 'Must have OAuth step');
+  assertIncludes(html, 'step-3', 'Must have completion step');
+  assertIncludes(html, 'wizard-step', 'Must have progress indicators');
+  assertIncludes(html, 'runSmokeTest', 'Must run smoke tests');
+});
+
+electron.test('dashboard page exists with service status', () => {
+  assert(fileExists('electron-app/src/pages/dashboard.html'), 'Missing dashboard.html');
+  const html = readFile('electron-app/src/pages/dashboard.html');
+  assertIncludes(html, 'gw-status', 'Must show gateway status');
+  assertIncludes(html, 'ollama-status', 'Must show Ollama status');
+  assertIncludes(html, 'model-name', 'Must show active model');
+  assertIncludes(html, 'auth-badge', 'Must show auth status');
+  assertIncludes(html, 'task-input', 'Must have quick task input');
+});
+
+electron.test('settings page exists with config management', () => {
+  assert(fileExists('electron-app/src/pages/settings.html'), 'Missing settings.html');
+  const html = readFile('electron-app/src/pages/settings.html');
+  assertIncludes(html, 'azure-client-id', 'Must have Azure Client ID field');
+  assertIncludes(html, 'model-select', 'Must have model selection');
+  assertIncludes(html, 'ms-disconnect', 'Must have disconnect button');
+  assertIncludes(html, 'device-name', 'Must have device name config');
+  assertIncludes(html, 'reset-btn', 'Must have reset setup option');
+});
+
+electron.test('shared styles exist', () => {
+  assert(fileExists('electron-app/src/styles.css'), 'Missing styles.css');
+  const css = readFile('electron-app/src/styles.css');
+  assertIncludes(css, 'titlebar', 'Must style titlebar');
+  assertIncludes(css, 'wizard-step', 'Must style wizard steps');
+  assertIncludes(css, 'status-dot', 'Must style status indicators');
+});
+
+electron.test('IPC handlers cover all features', () => {
+  const code = readFile('electron-app/main.js');
+  const handlers = [
+    'navigate', 'store:get', 'store:set',
+    'auth:start-microsoft', 'auth:get-status', 'auth:logout',
+    'api:health', 'api:models', 'api:services', 'api:task',
+    'setup:complete', 'setup:smoke-test',
+  ];
+  for (const h of handlers) {
+    assertIncludes(code, `'${h}'`, `Missing IPC handler: ${h}`);
+  }
+});
+
+electron.test('smoke test checks Ollama, Gateway, and inference', () => {
+  const code = readFile('electron-app/main.js');
+  assertIncludes(code, '/api/tags', 'Smoke test must check Ollama');
+  assertIncludes(code, '/health', 'Smoke test must check gateway');
+  assertIncludes(code, '/api/chat', 'Smoke test must check inference');
+});
+
+electron.test('macOS build config targets DMG', () => {
+  const pkg = JSON.parse(readFile('electron-app/package.json'));
+  assert(pkg.build, 'Missing build config');
+  assert(pkg.build.mac, 'Missing mac build config');
+  assert(pkg.build.mac.target === 'dmg', 'Mac target should be dmg');
+  assertIncludes(pkg.build.appId, 'hekla', 'App ID must include hekla');
+});
+
+// ═══════════════════════════════════════
 // Run all suites
 // ═══════════════════════════════════════
 async function run() {
   console.log('\n  HEKLA Offline Test Suite');
   console.log('  ═══════════════════════\n');
 
-  const allSuites = [arch, serial, compose, db, gw, orch, safety, env, docker, docs];
+  const allSuites = [arch, serial, compose, db, gw, orch, safety, env, docker, docs, electron];
 
   for (const suite of allSuites) {
     await suite.run();

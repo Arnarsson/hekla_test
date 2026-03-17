@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HEKLA</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="titlebar"><h1>HEKLA</h1></div>
+
+  <div class="app fade-in">
+    <nav class="nav">
+      <button class="nav-btn active" data-page="dashboard">Dashboard</button>
+      <button class="nav-btn" data-page="settings">Settings</button>
+    </nav>
+
+    <!-- Status cards -->
+    <div class="grid grid-3" id="status-cards">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Gateway</span>
+          <span class="status" id="gw-status"><span class="status-dot unknown"></span> checking</span>
+        </div>
+        <div class="service-detail">localhost:3000</div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Ollama</span>
+          <span class="status" id="ollama-status"><span class="status-dot unknown"></span> checking</span>
+        </div>
+        <div class="service-detail" id="ollama-detail">localhost:11434</div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Langfuse</span>
+          <span class="status" id="langfuse-status"><span class="status-dot unknown"></span> checking</span>
+        </div>
+        <div class="service-detail">localhost:3001</div>
+      </div>
+    </div>
+
+    <!-- Model info -->
+    <div class="card" id="model-card">
+      <div class="card-header">
+        <span class="card-title">Active Model</span>
+        <span class="model-badge" id="model-name">loading...</span>
+      </div>
+      <div id="model-list" class="service-detail">Fetching models...</div>
+    </div>
+
+    <!-- Account -->
+    <div class="card" id="account-card">
+      <div class="card-header">
+        <span class="card-title">Microsoft Account</span>
+        <span id="auth-badge" class="status"><span class="status-dot unknown"></span> checking</span>
+      </div>
+      <div id="account-info" class="service-detail">Checking authentication...</div>
+      <div style="margin-top: 12px">
+        <button class="btn btn-primary" id="auth-btn" style="display:none">Connect Microsoft Account</button>
+      </div>
+    </div>
+
+    <!-- Quick task -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom: 12px">Quick Task</div>
+      <div style="display: flex; gap: 8px">
+        <input class="input" id="task-input" placeholder="Ask HEKLA something..." style="flex:1">
+        <button class="btn btn-primary" id="task-btn">Send</button>
+      </div>
+      <div id="task-result" style="margin-top: 12px; display: none" class="service-detail"></div>
+    </div>
+
+    <!-- Device info -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom: 8px">Device</div>
+      <div class="service-detail" id="device-info">Loading...</div>
+    </div>
+  </div>
+
+  <script>
+    // Navigation
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const page = btn.dataset.page;
+        if (page !== 'dashboard') window.hekla.navigate(page);
+      });
+    });
+
+    // Refresh status
+    async function refreshStatus() {
+      const services = await window.hekla.getServices();
+      for (const svc of services) {
+        const id = svc.name === 'Gateway' ? 'gw' : svc.name.toLowerCase();
+        const el = document.getElementById(`${id}-status`);
+        if (el) {
+          const dot = svc.status === 'running' ? 'running' : 'down';
+          el.innerHTML = `<span class="status-dot ${dot}"></span> ${svc.status}`;
+        }
+      }
+    }
+
+    async function refreshModels() {
+      const data = await window.hekla.getModels();
+      const models = data.models || [];
+      const nameEl = document.getElementById('model-name');
+      const listEl = document.getElementById('model-list');
+
+      if (models.length > 0) {
+        nameEl.textContent = models[0].name;
+        listEl.textContent = models.map(m => m.name).join(', ');
+      } else {
+        nameEl.textContent = 'none';
+        listEl.textContent = 'No models loaded — run: ollama pull qwen2.5:32b';
+      }
+    }
+
+    async function refreshAuth() {
+      const auth = await window.hekla.getAuthStatus();
+      const badge = document.getElementById('auth-badge');
+      const info = document.getElementById('account-info');
+      const btn = document.getElementById('auth-btn');
+
+      if (auth.authenticated) {
+        badge.innerHTML = '<span class="status-dot running"></span> connected';
+        info.textContent = `${auth.name} (${auth.email})`;
+        btn.style.display = 'none';
+      } else {
+        badge.innerHTML = '<span class="status-dot down"></span> not connected';
+        info.textContent = 'Connect your Microsoft account to enable mail and calendar.';
+        btn.style.display = '';
+      }
+    }
+
+    async function refreshDevice() {
+      const name = await window.hekla.getConfig('deviceName') || 'hekla-device';
+      document.getElementById('device-info').textContent = `Name: ${name}`;
+    }
+
+    // Auth button
+    document.getElementById('auth-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('auth-btn');
+      btn.disabled = true;
+      btn.textContent = 'Opening browser...';
+      try {
+        await window.hekla.startMicrosoftAuth();
+        refreshAuth();
+      } catch (e) {
+        document.getElementById('account-info').textContent = `Error: ${e.message}`;
+      }
+      btn.disabled = false;
+      btn.textContent = 'Connect Microsoft Account';
+    });
+
+    // Quick task
+    document.getElementById('task-btn').addEventListener('click', async () => {
+      const input = document.getElementById('task-input');
+      const result = document.getElementById('task-result');
+      const message = input.value.trim();
+      if (!message) return;
+
+      result.style.display = 'block';
+      result.textContent = 'Processing...';
+
+      const data = await window.hekla.sendTask(message);
+      if (data.error) {
+        result.textContent = `Error: ${data.error}`;
+      } else {
+        result.textContent = `Job: ${data.jobId || 'submitted'} — Status: ${data.status || 'queued'}`;
+      }
+    });
+
+    document.getElementById('task-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('task-btn').click();
+    });
+
+    // Init
+    refreshStatus();
+    refreshModels();
+    refreshAuth();
+    refreshDevice();
+
+    // Auto-refresh every 30s
+    setInterval(refreshStatus, 30000);
+  </script>
+</body>
+</html>

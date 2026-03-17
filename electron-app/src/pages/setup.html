@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HEKLA — Setup</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="titlebar"><h1>HEKLA SETUP</h1></div>
+
+  <div class="app fade-in">
+    <!-- Progress steps -->
+    <div class="wizard-steps">
+      <div class="wizard-step active" id="step-bar-0"></div>
+      <div class="wizard-step" id="step-bar-1"></div>
+      <div class="wizard-step" id="step-bar-2"></div>
+      <div class="wizard-step" id="step-bar-3"></div>
+    </div>
+
+    <!-- Step 0: Welcome -->
+    <div id="step-0" class="step">
+      <div class="card">
+        <h2 style="font-size: 22px; margin-bottom: 8px">Welcome to HEKLA</h2>
+        <p style="color: var(--text-dim); margin-bottom: 24px">
+          Your local AI personal assistant. Let's get everything set up.<br>
+          This will take about 2 minutes.
+        </p>
+
+        <div class="field">
+          <label class="label">Your Name</label>
+          <input class="input" id="user-name" placeholder="e.g. Jon Arnarsson">
+        </div>
+
+        <div class="field">
+          <label class="label">Email</label>
+          <input class="input" id="user-email" type="email" placeholder="e.g. jon@example.com">
+        </div>
+
+        <div class="field">
+          <label class="label">Device Name</label>
+          <input class="input" id="device-name" value="hekla-device" placeholder="e.g. hekla-office">
+        </div>
+
+        <button class="btn btn-primary" id="next-0">Continue</button>
+      </div>
+    </div>
+
+    <!-- Step 1: Services Check -->
+    <div id="step-1" class="step" style="display:none">
+      <div class="card">
+        <h2 style="font-size: 18px; margin-bottom: 8px">System Check</h2>
+        <p style="color: var(--text-dim); margin-bottom: 20px">
+          Verifying that all HEKLA services are running.
+        </p>
+
+        <div id="smoke-results">
+          <div class="test-item">
+            <div class="test-icon loading"><span class="spinner"></span></div>
+            <div>
+              <div class="test-name">Running checks...</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 20px; display: flex; gap: 8px">
+          <button class="btn btn-secondary" id="rerun-tests">Re-run Tests</button>
+          <button class="btn btn-primary" id="next-1" disabled>Continue</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Microsoft Account -->
+    <div id="step-2" class="step" style="display:none">
+      <div class="card">
+        <h2 style="font-size: 18px; margin-bottom: 8px">Connect Microsoft Account</h2>
+        <p style="color: var(--text-dim); margin-bottom: 12px">
+          HEKLA needs access to your mail and calendar via Microsoft Graph.
+        </p>
+        <p style="color: var(--text-dim); margin-bottom: 20px; font-size: 12px">
+          This opens your browser for secure OAuth. HEKLA never sees your Microsoft password.
+        </p>
+
+        <div class="field">
+          <label class="label">Azure App Client ID</label>
+          <input class="input" id="azure-client-id" placeholder="e.g. 12345678-abcd-efgh-1234-567890abcdef">
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px">
+            From your Azure App Registration. Ask your admin if unsure.
+          </div>
+        </div>
+
+        <div id="oauth-status" style="margin-bottom: 16px"></div>
+
+        <div style="display: flex; gap: 8px">
+          <button class="btn btn-primary" id="start-oauth">Connect Microsoft Account</button>
+          <button class="btn btn-secondary" id="skip-oauth">Skip for Now</button>
+        </div>
+
+        <div style="margin-top: 16px">
+          <button class="btn btn-primary" id="next-2" style="display:none">Continue</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Done -->
+    <div id="step-3" class="step" style="display:none">
+      <div class="card" style="text-align: center; padding: 40px">
+        <div style="font-size: 48px; color: var(--green); margin-bottom: 16px">&#10003;</div>
+        <h2 style="font-size: 22px; margin-bottom: 8px">You're all set!</h2>
+        <p style="color: var(--text-dim); margin-bottom: 24px">
+          HEKLA is ready. You can talk to your assistant via Telegram<br>
+          or use this dashboard to manage your device.
+        </p>
+        <button class="btn btn-primary" id="finish-btn" style="font-size: 15px; padding: 10px 32px">
+          Open Dashboard
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentStep = 0;
+
+    function goToStep(n) {
+      // Hide all
+      document.querySelectorAll('.step').forEach(el => el.style.display = 'none');
+      // Show target
+      document.getElementById(`step-${n}`).style.display = '';
+      // Update bars
+      for (let i = 0; i < 4; i++) {
+        const bar = document.getElementById(`step-bar-${i}`);
+        bar.className = 'wizard-step' + (i < n ? ' done' : i === n ? ' active' : '');
+      }
+      currentStep = n;
+    }
+
+    // Step 0 → 1
+    document.getElementById('next-0').addEventListener('click', async () => {
+      const name = document.getElementById('user-name').value.trim();
+      const email = document.getElementById('user-email').value.trim();
+      const deviceName = document.getElementById('device-name').value.trim();
+
+      if (!name || !email) {
+        alert('Please enter your name and email.');
+        return;
+      }
+
+      await window.hekla.setConfig('userName', name);
+      await window.hekla.setConfig('userEmail', email);
+      await window.hekla.setConfig('deviceName', deviceName || 'hekla-device');
+
+      goToStep(1);
+      runSmokeTests();
+    });
+
+    // Smoke tests
+    async function runSmokeTests() {
+      const container = document.getElementById('smoke-results');
+      container.innerHTML = '<div class="test-item"><div class="test-icon loading"><span class="spinner"></span></div><div><div class="test-name">Running checks...</div></div></div>';
+
+      const results = await window.hekla.runSmokeTest();
+      container.innerHTML = '';
+
+      let allPass = true;
+      for (const r of results) {
+        const icon = r.pass ? 'pass' : 'fail';
+        const sym = r.pass ? '&#10003;' : '&#10007;';
+        if (!r.pass) allPass = false;
+
+        container.innerHTML += `
+          <div class="test-item">
+            <div class="test-icon ${icon}">${sym}</div>
+            <div>
+              <div class="test-name">${r.name}</div>
+              ${r.detail ? `<div class="test-detail">${r.detail}</div>` : ''}
+            </div>
+          </div>`;
+      }
+
+      document.getElementById('next-1').disabled = !allPass;
+      // Allow continue even if not all pass (user might skip)
+      if (!allPass) {
+        container.innerHTML += `
+          <div style="margin-top: 12px; font-size: 12px; color: var(--yellow)">
+            Some checks failed. Fix them or continue anyway.
+          </div>`;
+        document.getElementById('next-1').disabled = false;
+      }
+    }
+
+    document.getElementById('rerun-tests').addEventListener('click', runSmokeTests);
+    document.getElementById('next-1').addEventListener('click', () => goToStep(2));
+
+    // Step 2: OAuth
+    document.getElementById('start-oauth').addEventListener('click', async () => {
+      const clientId = document.getElementById('azure-client-id').value.trim();
+      if (!clientId) {
+        document.getElementById('oauth-status').innerHTML = '<span style="color:var(--red)">Please enter your Azure Client ID.</span>';
+        return;
+      }
+
+      await window.hekla.setConfig('azureClientId', clientId);
+      document.getElementById('oauth-status').innerHTML = '<span style="color:var(--accent)">Opening browser for Microsoft login...</span>';
+
+      try {
+        const result = await window.hekla.startMicrosoftAuth();
+        document.getElementById('oauth-status').innerHTML =
+          `<span style="color:var(--green)">Connected: ${result.name} (${result.email})</span>`;
+        document.getElementById('next-2').style.display = '';
+      } catch (e) {
+        document.getElementById('oauth-status').innerHTML =
+          `<span style="color:var(--red)">Error: ${e.message}</span>`;
+      }
+    });
+
+    document.getElementById('skip-oauth').addEventListener('click', () => {
+      document.getElementById('next-2').style.display = '';
+    });
+
+    document.getElementById('next-2').addEventListener('click', () => goToStep(3));
+
+    // Step 3: Finish
+    document.getElementById('finish-btn').addEventListener('click', async () => {
+      const email = await window.hekla.getConfig('userEmail');
+      await window.hekla.completeSetup(email);
+    });
+  </script>
+</body>
+</html>
