@@ -1,0 +1,16 @@
+[Unit]
+Description=HEKLA Health Check
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart={{HEKLA_INSTALL_PATH}}/scripts/health-check.sh
+User={{SERVICE_USER}}
+Environment=HEKLA_INSTALL_PATH={{HEKLA_INSTALL_PATH}}
+Environment=CUSTOMER_ID={{CUSTOMER_ID}}
+StandardOutput=append:{{HEKLA_LOG_PATH}}/health-check.log
+StandardError=append:{{HEKLA_LOG_PATH}}/health-check.log
+
+[Install]
+WantedBy=multi-user.target

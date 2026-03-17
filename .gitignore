@@ -27,3 +27,10 @@ Thumbs.db
 dist/
 build/
 out/
+
+# Pipeline runtime logs and checkpoints
+tasks/setup/alpha/logs/
+*.jsonl
+
+# Customer secrets
+customer.env

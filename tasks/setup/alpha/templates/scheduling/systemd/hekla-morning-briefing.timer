@@ -1,0 +1,11 @@
+[Unit]
+Description=HEKLA Morning Briefing Timer
+Requires=hekla-morning-briefing.service
+
+[Timer]
+OnCalendar=*-*-* {{BRIEFING_HOUR}}:00:00
+Persistent=true
+Unit=hekla-morning-briefing.service
+
+[Install]
+WantedBy=timers.target

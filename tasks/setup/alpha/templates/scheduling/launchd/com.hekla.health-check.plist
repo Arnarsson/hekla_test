@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.hekla.health-check</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{HEKLA_INSTALL_PATH}}/scripts/health-check.sh</string>
+    </array>
+
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>{{HEKLA_LOG_PATH}}/health-check.stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>{{HEKLA_LOG_PATH}}/health-check.stderr.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HEKLA_INSTALL_PATH</key>
+        <string>{{HEKLA_INSTALL_PATH}}</string>
+        <key>CUSTOMER_ID</key>
+        <string>{{CUSTOMER_ID}}</string>
+    </dict>
+</dict>
+</plist>

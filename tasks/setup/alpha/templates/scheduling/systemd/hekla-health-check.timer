@@ -1,0 +1,11 @@
+[Unit]
+Description=HEKLA Health Check Timer
+Requires=hekla-health-check.service
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=hekla-health-check.service
+
+[Install]
+WantedBy=timers.target
