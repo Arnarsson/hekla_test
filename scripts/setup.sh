@@ -262,23 +262,23 @@ echo "  • Ollama:   http://localhost:11434 (native Metal)"
 echo ""
 
 # Launch Electron app
-if [ -f electron-app/node_modules/.bin/electron ]; then
-    echo -e "  ${CYAN}→${NC} Launching HEKLA Desktop app..."
+echo -e "  ${CYAN}→${NC} Installing and launching HEKLA Desktop app..."
+if (cd electron-app && npm install --no-fund --no-audit); then
+    echo -e "  ${GREEN}✓${NC} Dependencies installed"
     echo "    The setup wizard will guide you through connecting your Microsoft account."
     echo ""
-    (cd electron-app && ACTIVE_MODEL=${RECOMMENDED_MODEL} npm start &)
+    (cd electron-app && ACTIVE_MODEL=${RECOMMENDED_MODEL} npm run dev &)
     ELECTRON_PID=$!
     sleep 2
     if kill -0 $ELECTRON_PID 2>/dev/null; then
         echo -e "  ${GREEN}✓${NC} HEKLA Desktop launched (PID: ${ELECTRON_PID})"
     else
         echo -e "  ${RED}✗${NC} HEKLA Desktop failed to start. Try manually:"
-        echo "    cd electron-app && npm start"
+        echo "    cd electron-app && npm run dev"
     fi
 else
-    echo -e "  ${RED}✗${NC} Electron binary not found — npm install may have failed."
-    echo "  To launch the desktop app:"
-    echo "    cd electron-app && npm install && npm start"
+    echo -e "  ${RED}✗${NC} npm install failed. Try manually:"
+    echo "    cd electron-app && npm install && npm run dev"
 fi
 echo ""
 echo "  https://www.hekla.cc/"
