@@ -287,7 +287,7 @@ if (cd electron-app && npm install --no-fund --no-audit); then
     echo "    The setup wizard will guide you through connecting your Microsoft account."
     echo ""
     cd electron-app
-    ACTIVE_MODEL=${RECOMMENDED_MODEL} npm run dev &
+    ACTIVE_MODEL=${RECOMMENDED_MODEL} npm start &
     ELECTRON_PID=$!
     cd ..
     sleep 3
@@ -295,11 +295,11 @@ if (cd electron-app && npm install --no-fund --no-audit); then
         echo -e "  ${GREEN}✓${NC} HEKLA Desktop launched (PID: ${ELECTRON_PID})"
     else
         echo -e "  ${RED}✗${NC} HEKLA Desktop failed to start. Try manually:"
-        echo "    cd electron-app && npm run dev"
+        echo "    cd electron-app && npm start"
     fi
 else
     echo -e "  ${RED}✗${NC} npm install failed. Try manually:"
-    echo "    cd electron-app && npm install && npm run dev"
+    echo "    cd electron-app && npm install && npm start"
 fi
 echo ""
 echo "  https://www.hekla.cc/"
