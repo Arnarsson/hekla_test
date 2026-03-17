@@ -216,6 +216,19 @@ gw.test('has required endpoints', () => {
   assertIncludes(code, "'/api/models'", 'Missing /api/models');
 });
 
+gw.test('has OAuth token endpoints for Electron app', () => {
+  const code = readFile('services/gateway/index.js');
+  assertIncludes(code, "'/api/oauth/token'", 'Missing POST /api/oauth/token');
+  assertIncludes(code, "'/api/oauth/status'", 'Missing GET /api/oauth/status');
+  assertIncludes(code, "delete('/api/oauth/token'", 'Missing DELETE /api/oauth/token');
+});
+
+gw.test('has database pool for token storage', () => {
+  const code = readFile('services/gateway/index.js');
+  assertIncludes(code, 'Pool', 'Must use pg Pool for database access');
+  assertIncludes(code, 'DATABASE_URL', 'Must use DATABASE_URL env var');
+});
+
 gw.test('validates missing message', () => {
   const code = readFile('services/gateway/index.js');
   assertIncludes(code, '!message', 'Missing message validation');
